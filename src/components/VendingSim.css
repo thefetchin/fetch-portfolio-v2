@@ -779,6 +779,143 @@
   color: white;
 }
 
+/* SNACK HERO CHIP + KONAMI BADGE + SECRET MENU --------------------------- */
+
+.vsim-brand-mode {
+  margin-left: 0.5rem;
+  padding: 0.1rem 0.45rem;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #f97316, #fb7185);
+  color: white;
+  font-size: 0.62rem;
+  letter-spacing: 0.2em;
+  font-weight: 800;
+  text-shadow: 0 1px 1px rgba(0, 0, 0, 0.25);
+  animation: vsim-pulse 1.6s ease-in-out infinite;
+}
+
+.vsim-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.45rem 0.85rem;
+  border-radius: 999px;
+  background: linear-gradient(135deg, rgba(250, 204, 21, 0.18), rgba(14, 165, 233, 0.12));
+  border: 1px solid rgba(250, 204, 21, 0.45);
+  color: #fde68a;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  align-self: flex-start;
+  animation: vsim-row-in 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.vsim-secret {
+  position: absolute;
+  inset: 0;
+  z-index: 11;
+  background: rgba(2, 8, 20, 0.62);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  animation: vsim-pay-fade 0.25s ease;
+}
+
+.vsim-secret-card {
+  width: min(320px, 92%);
+  background: linear-gradient(180deg, #131a2a, #0a1020);
+  border: 1px solid rgba(56, 189, 248, 0.35);
+  border-radius: 16px;
+  padding: 1rem 1rem 0.9rem;
+  color: white;
+  box-shadow: 0 30px 80px -20px rgba(0, 0, 0, 0.6);
+}
+
+.vsim-secret-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  font-size: 0.92rem;
+  color: rgba(255, 255, 255, 0.9);
+  padding-bottom: 0.65rem;
+  margin-bottom: 0.65rem;
+  border-bottom: 1px dashed rgba(255, 255, 255, 0.12);
+}
+
+.vsim-secret-x {
+  appearance: none;
+  border: none;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 1.3rem;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0 0.25rem;
+}
+
+.vsim-secret-x:hover { color: white; }
+
+.vsim-secret-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.vsim-secret-item {
+  display: grid;
+  grid-template-columns: 32px 1fr auto auto;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.4rem 0.5rem;
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.vsim-secret-img {
+  width: 32px;
+  height: 32px;
+  object-fit: contain;
+}
+
+.vsim-secret-name {
+  font-size: 0.9rem;
+  font-weight: 500;
+}
+
+.vsim-secret-price {
+  font-size: 0.82rem;
+  color: var(--brand-300);
+  font-weight: 700;
+  font-feature-settings: 'tnum';
+}
+
+.vsim-secret-add {
+  appearance: none;
+  border: 1px solid rgba(56, 189, 248, 0.5);
+  background: linear-gradient(180deg, var(--brand-400), var(--brand-600));
+  color: white;
+  padding: 0.35rem 0.7rem;
+  border-radius: 8px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  cursor: pointer;
+  font-family: inherit;
+  letter-spacing: 0.04em;
+}
+
+.vsim-secret-add:hover {
+  filter: brightness(1.08);
+}
+
 /* FOOTNOTE --------------------------------------------------------------- */
 
 .vsim-footnote {

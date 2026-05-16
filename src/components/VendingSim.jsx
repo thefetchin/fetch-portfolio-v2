@@ -1,5 +1,15 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEggs } from '../context/EggContext'
 import './VendingSim.css'
+
+// Off-menu items revealed by the long-press "secret menu" easter egg.
+// They reuse existing SVG assets, but live outside the regular shelves and
+// don't consume catalog stock.
+const SECRET_MENU = [
+  { id: 'S1', name: 'Cold Brew Float',   price: 65, src: '/green bottle.svg' },
+  { id: 'S2', name: 'Founder’s Cookie',  price: 35, src: '/Croissant.svg' },
+  { id: 'S3', name: 'Mystery Bag',       price: 40, src: '/dry fruit bag.svg' },
+]
 
 const CATALOG = [
   { code: 'A1', name: 'Sandwich',     price: 80, src: '/sandwich.svg',       stock: 4 },
@@ -55,6 +65,8 @@ const VendingSim = () => {
   const dropIdRef = useRef(0)
   const cartIdRef = useRef(0)
 
+  const { konamiActive, setKonamiActive, triggerConfetti, showToast } = useEggs()
+
   const [items, setItems] = useState(CATALOG)
   const [cart, setCart] = useState([])           // queued purchases
   const [mode, setMode] = useState('idle')       // 'idle' | 'paying' | 'paid' | 'awaiting' | 'opening'
@@ -64,6 +76,14 @@ const VendingSim = () => {
   const [receipt, setReceipt] = useState([])
   const [message, setMessage] = useState('TAP SNACKS · THEN PAY VIA UPI')
   const [konami, setKonami] = useState(0)
+  const [snackHero, setSnackHero] = useState(null)   // { count } chip persisted until restock
+  const [secretOpen, setSecretOpen] = useState(false)
+
+  const longPressTimerRef = useRef(null)
+  const longPressFiredRef = useRef(false)
+
+  // pricing helper — konami mode makes everything free
+  const priceOf = (p) => (konamiActive ? 0 : p)
 
   // reveal-on-scroll
   useEffect(() => {
@@ -93,7 +113,10 @@ const VendingSim = () => {
     return item.stock - (reservedCounts[code] || 0)
   }
 
-  const cartTotal = useMemo(() => cart.reduce((s, c) => s + c.price, 0), [cart])
+  const cartTotal = useMemo(
+    () => cart.reduce((s, c) => s + priceOf(c.price), 0),
+    [cart, konamiActive]
+  )
 
   const addToCart = (code) => {
     if (mode !== 'idle') return
@@ -116,16 +139,17 @@ const VendingSim = () => {
   const startPayment = () => {
     if (cart.length === 0 || mode !== 'idle') return
     setMode('paying')
-    setMessage(`SCAN TO PAY ₹${cartTotal}`)
-    // QR scanning animation runs purely via CSS; after ~2.4s switch to "paid"
+    setMessage(konamiActive ? `KONAMI MODE · ₹0` : `SCAN TO PAY ₹${cartTotal}`)
+    // Konami mode skips most of the scanning animation
+    const successAt = konamiActive ? 700 : 2400
+    const releaseAt = konamiActive ? 1200 : 3100
     setTimeout(() => {
       setMode('paid')
       setMessage('PAYMENT SUCCESSFUL ✓')
-    }, 2400)
-    // close payment screen after success briefly shown
+    }, successAt)
     setTimeout(() => {
       releaseCartToDoor()
-    }, 3100)
+    }, releaseAt)
   }
 
   const releaseCartToDoor = () => {
@@ -145,10 +169,17 @@ const VendingSim = () => {
 
     cart.forEach((c, i) => {
       const slotEl = slotRefs.current[c.code]
-      if (!slotEl) return
-      const slotRect = slotEl.getBoundingClientRect()
-      const startX = slotRect.left - winRect.left + slotRect.width / 2
-      const startY = slotRect.top - winRect.top + slotRect.height / 2
+      let startX
+      let startY
+      if (slotEl) {
+        const slotRect = slotEl.getBoundingClientRect()
+        startX = slotRect.left - winRect.left + slotRect.width / 2
+        startY = slotRect.top - winRect.top + slotRect.height / 2
+      } else {
+        // Secret-menu items don't live on a shelf — fall from the top centre.
+        startX = winRect.width / 2
+        startY = 40
+      }
 
       const id = ++dropIdRef.current
       // stagger drops
@@ -175,8 +206,28 @@ const VendingSim = () => {
   const openDoor = () => {
     if (mode !== 'awaiting' || insideDoor.length === 0) return
     setMode('opening')
-    setMessage('COLLECT YOUR ORDER')
-    // commit stock decrement now (these have been paid + dispensed)
+
+    const count = insideDoor.length
+    if (count >= 4) {
+      setMessage(`SNACK HERO · ${count} ITEMS ✨`)
+      setSnackHero({ count })
+      // confetti burst out of the door
+      const doorEl = doorRef.current
+      if (doorEl) {
+        const r = doorEl.getBoundingClientRect()
+        triggerConfetti({
+          origin: { x: r.left + r.width / 2, y: r.top + r.height / 2 },
+          count: 60,
+          duration: 1700,
+          spreadY: -120,
+        })
+      }
+    } else {
+      setMessage('COLLECT YOUR ORDER')
+    }
+
+    // commit stock decrement now (these have been paid + dispensed).
+    // Secret-menu items aren't part of the shelf catalog, so they're ignored.
     setItems((curr) =>
       curr.map((it) => {
         const used = insideDoor.filter((d) => d.code === it.code).length
@@ -199,10 +250,17 @@ const VendingSim = () => {
     setInsideDoor([])
     setDrops([])
     setMode('idle')
+    setSnackHero(null)
+    if (konamiActive) setKonamiActive(false)
     setMessage('RESTOCKED · TAP SNACKS · THEN PAY VIA UPI')
   }
 
   const onBrandClick = () => {
+    if (longPressFiredRef.current) {
+      // a long-press just fired — swallow the trailing click
+      longPressFiredRef.current = false
+      return
+    }
     if (mode !== 'idle') return
     const next = konami + 1
     setKonami(next)
@@ -216,7 +274,34 @@ const VendingSim = () => {
     }
   }
 
-  const upiAmount = cartTotal || cart.reduce((s, c) => s + c.price, 0)
+  // Long-press the FETCH logo to reveal the off-menu Secret Menu
+  const startLongPress = () => {
+    if (mode !== 'idle') return
+    longPressFiredRef.current = false
+    if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current)
+    longPressTimerRef.current = setTimeout(() => {
+      longPressFiredRef.current = true
+      setSecretOpen(true)
+      showToast('Secret Menu unlocked 🤫')
+    }, 1100)
+  }
+
+  const cancelLongPress = () => {
+    if (longPressTimerRef.current) {
+      clearTimeout(longPressTimerRef.current)
+      longPressTimerRef.current = null
+    }
+  }
+
+  const addSecret = (s) => {
+    if (mode !== 'idle') return
+    const id = ++cartIdRef.current
+    setCart((c) => [...c, { id, code: s.id, name: s.name, price: s.price, src: s.src }])
+    setMessage(`ADDED · ${s.name.toUpperCase()}`)
+    setSecretOpen(false)
+  }
+
+  const upiAmount = cartTotal
 
   return (
     <section id="simulator" ref={sectionRef} className="vsim">
@@ -235,10 +320,21 @@ const VendingSim = () => {
         <div className="vsim-machine" role="application" aria-label="Vending machine simulator">
           {/* GLASS WINDOW */}
           <div className="vsim-window" ref={windowRef}>
-            <div className="vsim-brand" onClick={onBrandClick} title="Fetch™">
+            <div
+              className="vsim-brand"
+              onClick={onBrandClick}
+              onMouseDown={startLongPress}
+              onMouseUp={cancelLongPress}
+              onMouseLeave={cancelLongPress}
+              onTouchStart={startLongPress}
+              onTouchEnd={cancelLongPress}
+              onTouchCancel={cancelLongPress}
+              title="Fetch™"
+            >
               <span>FETCH</span>
               <span className="vsim-brand-dot" />
               <span className="vsim-brand-small">SmartVend 01 · UPI</span>
+              {konamiActive && <span className="vsim-brand-mode">KONAMI</span>}
             </div>
 
             <div className="vsim-shelves">
@@ -264,7 +360,15 @@ const VendingSim = () => {
                     </div>
                     <div className="vsim-slot-meta">
                       <span className="vsim-slot-name">{it.name}</span>
-                      <span className="vsim-slot-price">₹{it.price}</span>
+                      <span className="vsim-slot-price">
+                        {konamiActive ? (
+                          <>
+                            <s>₹{it.price}</s> ₹0
+                          </>
+                        ) : (
+                          `₹${it.price}`
+                        )}
+                      </span>
                     </div>
                   </button>
                 )
@@ -331,6 +435,44 @@ const VendingSim = () => {
               <div className="vsim-door-slit" />
             </div>
 
+            {/* SECRET MENU POPOVER */}
+            {secretOpen && (
+              <div className="vsim-secret" role="dialog" aria-label="Secret menu">
+                <div className="vsim-secret-card">
+                  <div className="vsim-secret-head">
+                    <span>Secret Menu <span aria-hidden="true">🤫</span></span>
+                    <button
+                      type="button"
+                      className="vsim-secret-x"
+                      onClick={() => setSecretOpen(false)}
+                      aria-label="Close secret menu"
+                    >
+                      ×
+                    </button>
+                  </div>
+                  <ul className="vsim-secret-list">
+                    {SECRET_MENU.map((s) => (
+                      <li key={s.id} className="vsim-secret-item">
+                        <img src={s.src} alt="" className="vsim-secret-img" />
+                        <span className="vsim-secret-name">{s.name}</span>
+                        <span className="vsim-secret-price">
+                          {konamiActive ? <s>₹{s.price}</s> : `₹${s.price}`}
+                          {konamiActive && ' ₹0'}
+                        </span>
+                        <button
+                          type="button"
+                          className="vsim-secret-add"
+                          onClick={() => addSecret(s)}
+                        >
+                          Add
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              </div>
+            )}
+
             {/* PAYMENT OVERLAY */}
             {(mode === 'paying' || mode === 'paid') && (
               <div className="vsim-pay">
@@ -391,6 +533,13 @@ const VendingSim = () => {
               <div className="vsim-screen-msg">{message}</div>
             </div>
 
+            {snackHero && (
+              <div className="vsim-chip">
+                <span aria-hidden="true">🏆</span>
+                Snack Hero · {snackHero.count} items in one order
+              </div>
+            )}
+
             <div className="vsim-cart">
               <div className="vsim-cart-head">
                 <span>Your order</span>
@@ -404,7 +553,7 @@ const VendingSim = () => {
                   <li key={c.id} className="vsim-cart-item">
                     <img src={c.src} alt="" className="vsim-cart-img" />
                     <span className="vsim-cart-name">{c.name}</span>
-                    <span className="vsim-cart-price">₹{c.price}</span>
+                    <span className="vsim-cart-price">₹{priceOf(c.price)}</span>
                     <button
                       type="button"
                       className="vsim-cart-x"
@@ -448,7 +597,8 @@ const VendingSim = () => {
         </div>
 
         <p className="vsim-footnote">
-          Tap snacks · scan the QR · push the door. (Psst — try clicking the FETCH logo a few times.)
+          Tap snacks · scan the QR · push the door. (Psst — short-tap the FETCH logo a few times,
+          or hold it for a moment. Konami fans, the cabinet has a surprise for you too.)
         </p>
       </div>
     </section>
