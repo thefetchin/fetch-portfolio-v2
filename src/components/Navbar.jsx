@@ -28,6 +28,7 @@ const Navbar = ({ scrollY }) => {
           <a href="#features" onClick={(e) => { e.preventDefault(); scrollToSection('features') }}>Why Fetch</a>
           <a href="#partners" onClick={(e) => { e.preventDefault(); scrollToSection('partners') }}>Partners</a>
           <a href="#portfolio" onClick={(e) => { e.preventDefault(); scrollToSection('portfolio') }}>Portfolio</a>
+          <a href="#simulator" onClick={(e) => { e.preventDefault(); scrollToSection('simulator') }}>Try it</a>
           <button
             type="button"
             className="nav-cta"
