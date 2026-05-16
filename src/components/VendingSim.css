@@ -791,19 +791,48 @@
 /* RESPONSIVE ------------------------------------------------------------- */
 
 @media (max-width: 900px) {
-  .vsim-machine { grid-template-columns: 1fr; }
-  .vsim-window  { min-height: 520px; }
+  .vsim-machine { grid-template-columns: 1fr; padding: 1.1rem; gap: 1rem; }
+  .vsim-window  { min-height: 480px; }
 }
 
-@media (max-width: 520px) {
-  .vsim { padding: 5rem 1rem 6rem; }
-  .vsim-machine { padding: 1rem; gap: 1rem; border-radius: 20px; }
-  .vsim-shelves { gap: 0.5rem; }
-  .vsim-slot { padding: 0.5rem 0.35rem 0.4rem; }
-  .vsim-slot-img-wrap { height: 46px; }
-  .vsim-slot-img { max-height: 46px; }
-  .vsim-slot-name { font-size: 0.68rem; }
-  .vsim-door { height: 96px; }
-  .vsim-door-logo { height: 22px; }
-  .vsim-door-item { height: 46px; }
+@media (max-width: 600px) {
+  .vsim { padding: 4.5rem 1rem 5rem; }
+  .vsim-machine { padding: 0.85rem; gap: 0.85rem; border-radius: 20px; }
+  .vsim-window  { padding: 0.75rem 0.75rem 0.9rem; min-height: 440px; }
+
+  .vsim-brand { font-size: 0.7rem; padding: 0.3rem 0.5rem 0.7rem; }
+  .vsim-brand-small { display: none; }
+
+  .vsim-shelves { gap: 0.45rem; padding: 0.3rem; }
+  .vsim-slot { padding: 0.45rem 0.3rem 0.35rem; gap: 0.3rem; }
+  .vsim-slot-img-wrap { height: 44px; }
+  .vsim-slot-img { max-height: 44px; }
+  .vsim-slot-meta { font-size: 0.66rem; gap: 0.25rem; }
+  .vsim-slot-name { font-size: 0.66rem; }
+  .vsim-slot-price { font-size: 0.7rem; }
+
+  .vsim-door { height: 88px; margin-top: 0.7rem; }
+  .vsim-door-frame { inset: 6px 8px 14px; padding: 0 0.5rem; }
+  .vsim-door-logo { height: 20px; }
+  .vsim-door-label { font-size: 0.6rem; letter-spacing: 0.18em; }
+  .vsim-door-item { height: 44px; }
+
+  .vsim-panel { padding: 0.85rem; gap: 0.75rem; }
+  .vsim-screen { padding: 0.7rem 0.85rem 0.85rem; }
+  .vsim-screen-msg { font-size: 0.82rem; }
+  .vsim-cart { padding: 0.7rem 0.85rem; }
+  .vsim-cart-list { max-height: 160px; }
+  .vsim-pay-btn { min-height: 48px; }
+  .vsim-restock { min-height: 44px; }
+
+  .vsim-pay-card { width: min(300px, 92%); padding: 1rem; gap: 0.8rem; }
+  .vsim-pay-amount { font-size: 1.2rem; }
+  .vsim-pay-foot { font-size: 0.78rem; }
+}
+
+/* Very small screens — keep slot labels readable */
+@media (max-width: 360px) {
+  .vsim-slot-name { font-size: 0.6rem; }
+  .vsim-slot-price { font-size: 0.65rem; }
+  .vsim-shelves { grid-template-columns: repeat(3, 1fr); }
 }
