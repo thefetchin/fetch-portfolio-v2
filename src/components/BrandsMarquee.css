@@ -1,0 +1,107 @@
+.brands-marquee {
+  position: relative;
+  padding: 4rem 0 4.5rem;
+  background: var(--ink-0);
+  border-top: 1px solid var(--ink-100);
+  border-bottom: 1px solid var(--ink-100);
+}
+
+.brands-marquee__header {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 2.25rem;
+  padding: 0 1.5rem;
+}
+
+.brands-marquee__eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--ink-500);
+}
+
+.brands-marquee__eyebrow::before,
+.brands-marquee__eyebrow::after {
+  content: '';
+  width: 32px;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--ink-300), transparent);
+}
+
+.brands-marquee__viewport {
+  position: relative;
+  overflow: hidden;
+  width: 100%;
+  -webkit-mask-image: linear-gradient(
+    90deg,
+    transparent 0,
+    #000 8%,
+    #000 92%,
+    transparent 100%
+  );
+  mask-image: linear-gradient(
+    90deg,
+    transparent 0,
+    #000 8%,
+    #000 92%,
+    transparent 100%
+  );
+}
+
+.brands-marquee__track {
+  display: flex;
+  align-items: center;
+  gap: 3.5rem;
+  width: max-content;
+  animation: marquee-scroll 38s linear infinite;
+  will-change: transform;
+}
+
+.brands-marquee:hover .brands-marquee__track {
+  animation-play-state: paused;
+}
+
+.brands-marquee__item {
+  display: inline-flex;
+  align-items: center;
+  height: 56px;
+  padding: 0 1.25rem;
+  white-space: nowrap;
+}
+
+.brands-marquee__wordmark {
+  font-family: 'Inter', sans-serif;
+  font-size: clamp(1.25rem, 1.8vw, 1.6rem);
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: var(--ink-700);
+  opacity: 0.6;
+  transition: opacity 0.25s ease, color 0.25s ease, transform 0.25s ease;
+}
+
+.brands-marquee__item:hover .brands-marquee__wordmark {
+  opacity: 1;
+  color: var(--brand-600);
+  transform: translateY(-1px);
+}
+
+@keyframes marquee-scroll {
+  from { transform: translate3d(0, 0, 0); }
+  to   { transform: translate3d(-50%, 0, 0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .brands-marquee__track {
+    animation-duration: 120s;
+  }
+}
+
+@media (max-width: 768px) {
+  .brands-marquee { padding: 3rem 0 3.25rem; }
+  .brands-marquee__track { gap: 2.25rem; animation-duration: 28s; }
+  .brands-marquee__item { height: 44px; padding: 0 0.75rem; }
+}

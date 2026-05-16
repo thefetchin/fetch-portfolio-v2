@@ -1,3 +1,5 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
+
 * {
   margin: 0;
   padding: 0;
@@ -5,33 +7,79 @@
 }
 
 :root {
-  --accent-color: #92ddfa;
-  --accent-dark: #6bc5e0;
-  --text-primary: #1a1a1a;
-  --text-secondary: #666666;
-  --bg-primary: #ffffff;
-  --bg-secondary: #f8f9fa;
-  --bg-dark: #0a0a0a;
+  /* Brand */
+  --brand-50:  #f0f9ff;
+  --brand-100: #e0f2fe;
+  --brand-200: #bae6fd;
+  --brand-300: #7dd3fc;
+  --brand-400: #38bdf8;
+  --brand-500: #0ea5e9;
+  --brand-600: #0284c7;
+  --brand-700: #0369a1;
+
+  /* Neutrals */
+  --ink-0:   #ffffff;
+  --ink-50:  #fafbfc;
+  --ink-100: #eef0f3;
+  --ink-200: #dde1e7;
+  --ink-300: #c2c8d2;
+  --ink-500: #6b7280;
+  --ink-600: #4b5563;
+  --ink-700: #1f2937;
+  --ink-800: #111827;
+  --ink-900: #0a0e1a;
+
+  /* Legacy aliases (kept so older components keep working while we refactor) */
+  --accent-color: var(--brand-400);
+  --accent-dark:  var(--brand-600);
+  --text-primary:   var(--ink-900);
+  --text-secondary: var(--ink-500);
+  --bg-primary:   var(--ink-0);
+  --bg-secondary: var(--ink-50);
+  --bg-dark:      var(--ink-900);
+
+  /* Type & radii */
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 20px;
+  --radius-pill: 999px;
+
+  /* Shadows */
+  --shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.06);
+  --shadow-md: 0 10px 30px -12px rgba(15, 23, 42, 0.18);
+  --shadow-lg: 0 24px 60px -20px rgba(15, 23, 42, 0.25);
 }
 
 html {
   scroll-behavior: smooth;
-  scroll-snap-type: y mandatory;
 }
 
 body {
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
-    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
-    sans-serif;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
+    'Helvetica Neue', Arial, sans-serif;
+  font-feature-settings: 'cv11', 'ss01';
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  color: var(--text-primary);
-  background-color: var(--bg-primary);
+  color: var(--ink-900);
+  background-color: var(--ink-0);
   line-height: 1.6;
+  text-rendering: optimizeLegibility;
+}
+
+::selection {
+  background: var(--brand-200);
+  color: var(--ink-900);
+}
+
+a {
+  color: inherit;
+}
+
+img, svg {
+  display: block;
+  max-width: 100%;
 }
 
 code {
-  font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New',
-    monospace;
+  font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New', monospace;
 }
-

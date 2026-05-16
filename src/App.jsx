@@ -1,7 +1,9 @@
 import { useState, useEffect } from 'react'
 import Navbar from './components/Navbar'
 import Hero from './components/Hero'
+import BrandsMarquee from './components/BrandsMarquee'
 import About from './components/About'
+import Features from './components/Features'
 import Partners from './components/Partners'
 import Portfolio from './components/Portfolio'
 import Contact from './components/Contact'
@@ -13,7 +15,7 @@ function App() {
 
   useEffect(() => {
     const handleScroll = () => setScrollY(window.scrollY)
-    window.addEventListener('scroll', handleScroll)
+    window.addEventListener('scroll', handleScroll, { passive: true })
     return () => window.removeEventListener('scroll', handleScroll)
   }, [])
 
@@ -21,7 +23,9 @@ function App() {
     <div className="App">
       <Navbar scrollY={scrollY} />
       <Hero />
+      <BrandsMarquee />
       <About />
+      <Features />
       <Partners />
       <Portfolio />
       <Contact />
@@ -31,4 +35,3 @@ function App() {
 }
 
 export default App
-

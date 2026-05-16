@@ -1,8 +1,12 @@
+import { FiArrowUp, FiInstagram, FiLinkedin, FiMail, FiPhone } from 'react-icons/fi'
 import './Footer.css'
 
 const Footer = () => {
-  const scrollToTop = () => {
-    window.scrollTo({ top: 0, behavior: 'smooth' })
+  const scrollToTop = () => window.scrollTo({ top: 0, behavior: 'smooth' })
+
+  const scrollTo = (id) => {
+    const el = document.getElementById(id)
+    if (el) el.scrollIntoView({ behavior: 'smooth' })
   }
 
   return (
@@ -11,27 +15,42 @@ const Footer = () => {
         <div className="footer-content">
           <div className="footer-brand">
             <img src="/fetch-logo.svg" alt="Fetch" className="footer-logo-image" />
-            <p>Smart vending solutions for modern spaces</p>
+            <p>
+              Smart vending infrastructure for offices, campuses, healthcare
+              and transit hubs across India.
+            </p>
+            <div className="footer-social">
+              <a href="https://instagram.com/" aria-label="Instagram" target="_blank" rel="noreferrer"><FiInstagram /></a>
+              <a href="https://linkedin.com/" aria-label="LinkedIn" target="_blank" rel="noreferrer"><FiLinkedin /></a>
+              <a href="mailto:thefetch.in@gmail.com" aria-label="Email"><FiMail /></a>
+              <a href="tel:+919019526185" aria-label="Phone"><FiPhone /></a>
+            </div>
           </div>
           <div className="footer-links">
             <div className="footer-column">
               <h4>Company</h4>
-              <a href="#about">About</a>
-              <a href="#services">Services</a>
-              <a href="#portfolio">Portfolio</a>
+              <a href="#about" onClick={(e) => { e.preventDefault(); scrollTo('about') }}>About</a>
+              <a href="#features" onClick={(e) => { e.preventDefault(); scrollTo('features') }}>Why Fetch</a>
+              <a href="#portfolio" onClick={(e) => { e.preventDefault(); scrollTo('portfolio') }}>Portfolio</a>
             </div>
             <div className="footer-column">
-              <h4>Resources</h4>
-              <a href="#contact">Contact</a>
-              <a href="#contact">Support</a>
-              <a href="#contact">FAQ</a>
+              <h4>Partner</h4>
+              <a href="#partners" onClick={(e) => { e.preventDefault(); scrollTo('partners') }}>Spaces</a>
+              <a href="#partners" onClick={(e) => { e.preventDefault(); scrollTo('partners') }}>Brands</a>
+              <a href="#partners" onClick={(e) => { e.preventDefault(); scrollTo('partners') }}>Advertisers</a>
+            </div>
+            <div className="footer-column">
+              <h4>Contact</h4>
+              <a href="mailto:thefetch.in@gmail.com">thefetch.in@gmail.com</a>
+              <a href="tel:+919019526185">+91 90195 26185</a>
+              <a href="#contact" onClick={(e) => { e.preventDefault(); scrollTo('contact') }}>Get in touch</a>
             </div>
           </div>
         </div>
         <div className="footer-bottom">
           <p>&copy; {new Date().getFullYear()} Fetch. All rights reserved.</p>
           <button className="scroll-to-top" onClick={scrollToTop} aria-label="Scroll to top">
-            ↑
+            <FiArrowUp />
           </button>
         </div>
       </div>
@@ -40,4 +59,3 @@ const Footer = () => {
 }
 
 export default Footer
-

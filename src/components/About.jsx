@@ -31,14 +31,15 @@ const About = () => {
     <section id="about" ref={aboutRef} className="about">
       <div className="about-container">
         <div className="about-content">
+          <span className="eyebrow">About Fetch</span>
           <h2 className="section-title">
-            About <span className="accent-text">Fetch</span>
+            We build the infrastructure behind <span className="accent-text">effortless retail.</span>
           </h2>
           <p className="section-description">
-            Fetch specializes in smart vending machine solutions that transform ordinary spaces 
-            into convenient, modern environments. We design and implement intelligent 
-            vending machine installations that seamlessly integrate into your space, 
-            connecting spaces, advertisers, and brands through innovative technology.
+            Fetch designs, deploys and operates a fleet of connected vending machines for
+            modern spaces. By bringing together IoT-grade hardware, cashless payments and
+            real-time inventory, we turn passive corners into always-on retail surfaces —
+            for spaces, brands, and advertisers alike.
           </p>
           <div className="about-highlights">
             <div className="highlight-item">

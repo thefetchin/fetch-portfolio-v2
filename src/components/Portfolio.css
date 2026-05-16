@@ -1,6 +1,6 @@
 .portfolio {
-  padding: 120px 2rem;
-  background: var(--bg-secondary);
+  padding: 7rem 1.5rem 8rem;
+  background: var(--ink-0);
 }
 
 .portfolio-container {
@@ -11,7 +11,20 @@
 
 .portfolio-header {
   text-align: center;
-  margin-bottom: 5rem;
+  margin-bottom: 4rem;
+  max-width: 720px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.portfolio-header .eyebrow {
+  display: inline-block;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--brand-600);
+  margin-bottom: 1rem;
 }
 
 .portfolio-grid {
@@ -51,16 +64,16 @@
 }
 
 .portfolio-card {
-  background: white;
-  border-radius: 24px;
-  padding: 3rem;
-  border: 1px solid var(--bg-secondary);
-  transition: all 0.4s ease;
+  background: var(--ink-0);
+  border-radius: var(--radius-lg);
+  padding: 2.5rem;
+  border: 1px solid var(--ink-100);
+  transition: transform 0.35s ease, box-shadow 0.35s ease, border-color 0.35s ease;
   position: relative;
   overflow: hidden;
   flex: 0 0 calc(33.333% - 1.34rem);
   min-width: 320px;
-  max-width: 380px;
+  max-width: 400px;
   scroll-snap-align: start;
 }
 
@@ -78,9 +91,9 @@
 }
 
 .portfolio-card:hover {
-  transform: translateY(-8px);
-  box-shadow: 0 20px 60px rgba(146, 221, 250, 0.15);
-  border-color: var(--accent-color);
+  transform: translateY(-6px);
+  box-shadow: var(--shadow-lg);
+  border-color: var(--brand-200);
 }
 
 .portfolio-card:hover::before {
@@ -95,11 +108,15 @@
 }
 
 .portfolio-number {
-  font-size: 3rem;
+  font-size: 0.85rem;
   font-weight: 700;
-  color: var(--accent-color);
-  opacity: 0.2;
+  letter-spacing: 0.18em;
+  color: var(--brand-600);
   line-height: 1;
+  padding: 0.4rem 0.7rem;
+  border: 1px solid var(--brand-200);
+  background: var(--brand-50);
+  border-radius: 999px;
 }
 
 
@@ -111,9 +128,9 @@
 }
 
 .portfolio-location {
-  color: var(--accent-color);
-  font-size: 0.9rem;
-  font-weight: 500;
+  color: var(--brand-600);
+  font-size: 0.88rem;
+  font-weight: 600;
   margin-bottom: 1rem;
 }
 
