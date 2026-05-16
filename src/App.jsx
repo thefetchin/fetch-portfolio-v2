@@ -9,6 +9,7 @@ import Portfolio from './components/Portfolio'
 import VendingSim from './components/VendingSim'
 import Contact from './components/Contact'
 import Footer from './components/Footer'
+import MoguraGame from './components/MoguraGame'
 import { EggProvider, useEggs } from './context/EggContext'
 import useKonami from './hooks/useKonami'
 import './App.css'
@@ -52,6 +53,7 @@ function AppInner() {
       <VendingSim />
       <Contact />
       <Footer />
+      <MoguraGame />
     </div>
   )
 }
