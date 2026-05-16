@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import './VendingSim.css'
 
 const CATALOG = [
@@ -13,18 +13,56 @@ const CATALOG = [
   { code: 'C3', name: 'Mint Bar',     price: 50, src: '/chocolate-3.svg',    stock: 0 },
 ]
 
+// Decorative QR pattern (21x21) with the standard three finder squares
+const QR_SIZE = 21
+const QR_GRID = (() => {
+  const g = Array.from({ length: QR_SIZE }, () => Array(QR_SIZE).fill(0))
+  const placeFinder = (r0, c0) => {
+    for (let r = 0; r < 7; r++) {
+      for (let c = 0; c < 7; c++) {
+        const onBorder = r === 0 || r === 6 || c === 0 || c === 6
+        const innerSquare = r >= 2 && r <= 4 && c >= 2 && c <= 4
+        g[r0 + r][c0 + c] = onBorder || innerSquare ? 1 : 0
+      }
+    }
+  }
+  placeFinder(0, 0)
+  placeFinder(0, QR_SIZE - 7)
+  placeFinder(QR_SIZE - 7, 0)
+  let seed = 1337
+  const rand = () => {
+    seed = (seed * 9301 + 49297) % 233280
+    return seed / 233280
+  }
+  for (let r = 0; r < QR_SIZE; r++) {
+    for (let c = 0; c < QR_SIZE; c++) {
+      const inFinder =
+        (r < 8 && c < 8) ||
+        (r < 8 && c >= QR_SIZE - 8) ||
+        (r >= QR_SIZE - 8 && c < 8)
+      if (inFinder) continue
+      if (rand() > 0.52) g[r][c] = 1
+    }
+  }
+  return g
+})()
+
 const VendingSim = () => {
   const sectionRef = useRef(null)
   const windowRef = useRef(null)
   const slotRefs = useRef({})
   const doorRef = useRef(null)
   const dropIdRef = useRef(0)
+  const cartIdRef = useRef(0)
 
   const [items, setItems] = useState(CATALOG)
-  const [receipt, setReceipt] = useState([])  // recently dispensed items
-  const [drops, setDrops] = useState([])      // currently falling SVGs
+  const [cart, setCart] = useState([])           // queued purchases
+  const [mode, setMode] = useState('idle')       // 'idle' | 'paying' | 'paid' | 'awaiting' | 'opening'
+  const [drops, setDrops] = useState([])         // currently falling SVGs into door
+  const [insideDoor, setInsideDoor] = useState([]) // items that have landed inside the door
   const [doorFlash, setDoorFlash] = useState(false)
-  const [message, setMessage] = useState('TAP A PRODUCT · UPI READY')
+  const [receipt, setReceipt] = useState([])
+  const [message, setMessage] = useState('TAP SNACKS · THEN PAY VIA UPI')
   const [konami, setKonami] = useState(0)
 
   // reveal-on-scroll
@@ -39,68 +77,146 @@ const VendingSim = () => {
     return () => obs.unobserve(node)
   }, [])
 
-  const dispense = (code) => {
-    const idx = items.findIndex((i) => i.code === code)
-    if (idx === -1) return
-    const item = items[idx]
-    if (item.stock <= 0) {
+  // Reservable stock: we only mark items as "used" when collected, but the
+  // shelf shows the live remaining count (current stock minus what's already
+  // reserved in cart or sitting in the door).
+  const reservedCounts = useMemo(() => {
+    const m = {}
+    for (const c of cart) m[c.code] = (m[c.code] || 0) + 1
+    for (const c of insideDoor) m[c.code] = (m[c.code] || 0) + 1
+    return m
+  }, [cart, insideDoor])
+
+  const remainingFor = (code) => {
+    const item = items.find((i) => i.code === code)
+    if (!item) return 0
+    return item.stock - (reservedCounts[code] || 0)
+  }
+
+  const cartTotal = useMemo(() => cart.reduce((s, c) => s + c.price, 0), [cart])
+
+  const addToCart = (code) => {
+    if (mode !== 'idle') return
+    const item = items.find((i) => i.code === code)
+    if (!item) return
+    if (remainingFor(code) <= 0) {
       setMessage(`SOLD OUT · ${item.name.toUpperCase()}`)
       return
     }
+    const id = ++cartIdRef.current
+    setCart((c) => [...c, { id, code, name: item.name, price: item.price, src: item.src }])
+    setMessage(`ADDED · ${item.name.toUpperCase()}`)
+  }
 
-    const slotEl = slotRefs.current[code]
+  const removeFromCart = (id) => {
+    if (mode !== 'idle') return
+    setCart((c) => c.filter((x) => x.id !== id))
+  }
+
+  const startPayment = () => {
+    if (cart.length === 0 || mode !== 'idle') return
+    setMode('paying')
+    setMessage(`SCAN TO PAY ₹${cartTotal}`)
+    // QR scanning animation runs purely via CSS; after ~2.4s switch to "paid"
+    setTimeout(() => {
+      setMode('paid')
+      setMessage('PAYMENT SUCCESSFUL ✓')
+    }, 2400)
+    // close payment screen after success briefly shown
+    setTimeout(() => {
+      releaseCartToDoor()
+    }, 3100)
+  }
+
+  const releaseCartToDoor = () => {
     const winEl = windowRef.current
     const doorEl = doorRef.current
-    if (!slotEl || !winEl || !doorEl) return
-
-    const slotRect = slotEl.getBoundingClientRect()
+    if (!winEl || !doorEl) {
+      setMode('idle')
+      return
+    }
     const winRect = winEl.getBoundingClientRect()
     const doorRect = doorEl.getBoundingClientRect()
-
-    const startX = slotRect.left - winRect.left + slotRect.width / 2
-    const startY = slotRect.top - winRect.top + slotRect.height / 2 + 4
     const endX = doorRect.left - winRect.left + doorRect.width / 2
     const endY = doorRect.top - winRect.top + doorRect.height / 2
 
-    const id = ++dropIdRef.current
-    setDrops((d) => [...d, { id, src: item.src, startX, startY, endX, endY }])
+    setMode('awaiting')
+    setMessage('PUSH THE DOOR TO COLLECT')
 
-    // commit stock + UI updates immediately so subsequent clicks are responsive
-    const newItems = [...items]
-    newItems[idx] = { ...item, stock: item.stock - 1 }
-    setItems(newItems)
-    setMessage(`UPI ✓  ₹${item.price} · ${item.name.toUpperCase()}`)
+    cart.forEach((c, i) => {
+      const slotEl = slotRefs.current[c.code]
+      if (!slotEl) return
+      const slotRect = slotEl.getBoundingClientRect()
+      const startX = slotRect.left - winRect.left + slotRect.width / 2
+      const startY = slotRect.top - winRect.top + slotRect.height / 2
 
-    // flash door on landing and add to receipt
-    setTimeout(() => setDoorFlash(true), 850)
+      const id = ++dropIdRef.current
+      // stagger drops
+      setTimeout(() => {
+        setDrops((d) => [...d, { id, src: c.src, startX, startY, endX, endY }])
+        // flash door briefly on landing
+        setTimeout(() => setDoorFlash(true), 800)
+        setTimeout(() => setDoorFlash(false), 1000)
+        // after fall completes, move into "inside door" state
+        setTimeout(() => {
+          setInsideDoor((arr) => [
+            ...arr,
+            { id, code: c.code, name: c.name, price: c.price, src: c.src },
+          ])
+          setDrops((d) => d.filter((x) => x.id !== id))
+        }, 950)
+      }, i * 220)
+    })
+
+    // clear cart immediately (those items are committed)
+    setCart([])
+  }
+
+  const openDoor = () => {
+    if (mode !== 'awaiting' || insideDoor.length === 0) return
+    setMode('opening')
+    setMessage('COLLECT YOUR ORDER')
+    // commit stock decrement now (these have been paid + dispensed)
+    setItems((curr) =>
+      curr.map((it) => {
+        const used = insideDoor.filter((d) => d.code === it.code).length
+        return used ? { ...it, stock: Math.max(0, it.stock - used) } : it
+      })
+    )
+    // after the open + enlarge animation, slide items into receipt
     setTimeout(() => {
-      setDoorFlash(false)
-      setReceipt((r) => [
-        { id, name: item.name, price: item.price, src: item.src },
-        ...r,
-      ].slice(0, 5))
-      setDrops((d) => d.filter((x) => x.id !== id))
-    }, 1050)
+      setReceipt((r) => [...insideDoor.map((d) => ({ ...d })), ...r].slice(0, 8))
+      setInsideDoor([])
+      setMode('idle')
+      setMessage('ENJOY · TAP SNACKS FOR ANOTHER ORDER')
+    }, 2200)
   }
 
   const restock = () => {
     setItems(CATALOG)
     setReceipt([])
-    setMessage('RESTOCKED · TAP A PRODUCT')
+    setCart([])
+    setInsideDoor([])
+    setDrops([])
+    setMode('idle')
+    setMessage('RESTOCKED · TAP SNACKS · THEN PAY VIA UPI')
   }
 
   const onBrandClick = () => {
+    if (mode !== 'idle') return
     const next = konami + 1
     setKonami(next)
     if (next >= 5) {
       setKonami(0)
-      const choco = items.find((i) => i.code === 'C1' && i.stock > 0)
+      const choco = items.find((i) => i.code === 'C1' && remainingFor('C1') > 0)
       if (choco) {
-        dispense('C1')
-        setMessage('🎉 ON THE HOUSE · ENJOY')
+        addToCart('C1')
+        setMessage('🎉 ADDED ON THE HOUSE · C1')
       }
     }
   }
+
+  const upiAmount = cartTotal || cart.reduce((s, c) => s + c.price, 0)
 
   return (
     <section id="simulator" ref={sectionRef} className="vsim">
@@ -108,11 +224,11 @@ const VendingSim = () => {
         <div className="vsim-header">
           <span className="eyebrow">Try it yourself</span>
           <h2 className="section-title">
-            Tap any snack. <span className="accent-text">Pay with UPI.</span>
+            Tap. Pay with UPI. <span className="accent-text">Collect.</span>
           </h2>
           <p className="section-description">
-            Every Fetch machine ships with a touch UI and on-screen UPI checkout —
-            no codes, no fumbling for change. Give it a go.
+            A miniature of the real Fetch experience — pick what you want, scan to pay,
+            then push the door to collect your snacks.
           </p>
         </div>
 
@@ -126,29 +242,33 @@ const VendingSim = () => {
             </div>
 
             <div className="vsim-shelves">
-              {items.map((it) => (
-                <button
-                  key={it.code}
-                  type="button"
-                  ref={(el) => (slotRefs.current[it.code] = el)}
-                  className={`vsim-slot ${it.stock === 0 ? 'is-empty' : ''}`}
-                  onClick={() => dispense(it.code)}
-                  disabled={it.stock === 0}
-                  aria-label={`${it.name}, ₹${it.price}, ${it.stock} in stock`}
-                >
-                  <div className="vsim-slot-img-wrap">
-                    {it.stock > 0 ? (
-                      <img src={it.src} alt="" className="vsim-slot-img" draggable="false" />
-                    ) : (
-                      <span className="vsim-slot-empty">SOLD OUT</span>
-                    )}
-                  </div>
-                  <div className="vsim-slot-meta">
-                    <span className="vsim-slot-name">{it.name}</span>
-                    <span className="vsim-slot-price">₹{it.price}</span>
-                  </div>
-                </button>
-              ))}
+              {items.map((it) => {
+                const remaining = remainingFor(it.code)
+                const isOut = remaining <= 0
+                return (
+                  <button
+                    key={it.code}
+                    type="button"
+                    ref={(el) => (slotRefs.current[it.code] = el)}
+                    className={`vsim-slot ${isOut ? 'is-empty' : ''}`}
+                    onClick={() => addToCart(it.code)}
+                    disabled={isOut || mode !== 'idle'}
+                    aria-label={`${it.name}, ₹${it.price}, ${remaining} remaining`}
+                  >
+                    <div className="vsim-slot-img-wrap">
+                      {!isOut ? (
+                        <img src={it.src} alt="" className="vsim-slot-img" draggable="false" />
+                      ) : (
+                        <span className="vsim-slot-empty">SOLD OUT</span>
+                      )}
+                    </div>
+                    <div className="vsim-slot-meta">
+                      <span className="vsim-slot-name">{it.name}</span>
+                      <span className="vsim-slot-price">₹{it.price}</span>
+                    </div>
+                  </button>
+                )
+              })}
             </div>
 
             {/* falling products */}
@@ -171,18 +291,94 @@ const VendingSim = () => {
             {/* DELIVERY DOOR */}
             <div
               ref={doorRef}
-              className={`vsim-door ${doorFlash ? 'is-flashing' : ''}`}
-              aria-hidden="true"
+              className={[
+                'vsim-door',
+                doorFlash ? 'is-flashing' : '',
+                mode === 'awaiting' && insideDoor.length > 0 ? 'is-ready' : '',
+                mode === 'opening' ? 'is-open' : '',
+              ].join(' ')}
             >
-              <div className="vsim-door-frame">
+              <button
+                type="button"
+                className="vsim-door-frame"
+                onClick={openDoor}
+                disabled={!(mode === 'awaiting' && insideDoor.length > 0)}
+                aria-label="Push the door to collect"
+              >
                 <img src="/fetch-logo.svg" alt="" className="vsim-door-logo" />
-                <span className="vsim-door-label">PUSH · COLLECT</span>
+                <span className="vsim-door-label">
+                  {mode === 'awaiting' && insideDoor.length > 0
+                    ? 'PUSH TO COLLECT'
+                    : mode === 'opening'
+                    ? 'COLLECTING…'
+                    : 'PUSH · COLLECT'}
+                </span>
+              </button>
+
+              {/* Items revealed when door opens */}
+              <div className="vsim-door-reveal">
+                {insideDoor.map((d, i) => (
+                  <img
+                    key={d.id}
+                    src={d.src}
+                    alt={d.name}
+                    className="vsim-door-item"
+                    style={{ animationDelay: `${i * 90}ms` }}
+                  />
+                ))}
               </div>
+
               <div className="vsim-door-slit" />
             </div>
+
+            {/* PAYMENT OVERLAY */}
+            {(mode === 'paying' || mode === 'paid') && (
+              <div className="vsim-pay">
+                <div className="vsim-pay-card">
+                  <div className="vsim-pay-head">
+                    <span className="vsim-pay-title">Pay with UPI</span>
+                    <span className="vsim-pay-amount">₹{upiAmount}</span>
+                  </div>
+
+                  <div className={`vsim-qr ${mode === 'paid' ? 'is-paid' : ''}`}>
+                    <div className="vsim-qr-grid" aria-hidden="true">
+                      {QR_GRID.flatMap((row, r) =>
+                        row.map((cell, c) => (
+                          <span
+                            key={`${r}-${c}`}
+                            className={cell ? 'vsim-qr-cell on' : 'vsim-qr-cell'}
+                          />
+                        ))
+                      )}
+                    </div>
+                    {mode === 'paying' && <div className="vsim-qr-scan" aria-hidden="true" />}
+                    {mode === 'paid' && (
+                      <div className="vsim-qr-check" aria-hidden="true">
+                        <svg viewBox="0 0 24 24" width="64" height="64" fill="none">
+                          <circle cx="12" cy="12" r="11" stroke="currentColor" strokeWidth="2" />
+                          <path
+                            d="M7 12.5l3.2 3.2L17 9"
+                            stroke="currentColor"
+                            strokeWidth="2.4"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          />
+                        </svg>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="vsim-pay-foot">
+                    {mode === 'paying'
+                      ? 'Scanning…  Open any UPI app to pay'
+                      : 'Payment successful · dispensing'}
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
 
-          {/* CONTROL / SCREEN PANEL */}
+          {/* CONTROL PANEL */}
           <div className="vsim-panel">
             <div className="vsim-screen" role="status" aria-live="polite">
               <div className="vsim-screen-top">
@@ -195,30 +391,55 @@ const VendingSim = () => {
               <div className="vsim-screen-msg">{message}</div>
             </div>
 
-            <div className="vsim-receipt">
-              <div className="vsim-receipt-head">
+            <div className="vsim-cart">
+              <div className="vsim-cart-head">
                 <span>Your order</span>
-                <span>{receipt.length} items</span>
+                <span>{cart.length} items</span>
               </div>
-              {receipt.length === 0 && (
-                <div className="vsim-receipt-empty">Items you collect will appear here.</div>
+              {cart.length === 0 && (
+                <div className="vsim-cart-empty">Tap any snack to add it.</div>
               )}
-              <ul className="vsim-receipt-list">
-                {receipt.map((r) => (
-                  <li key={r.id} className="vsim-receipt-item">
-                    <img src={r.src} alt="" className="vsim-receipt-img" />
-                    <span className="vsim-receipt-name">{r.name}</span>
-                    <span className="vsim-receipt-price">₹{r.price}</span>
+              <ul className="vsim-cart-list">
+                {cart.map((c) => (
+                  <li key={c.id} className="vsim-cart-item">
+                    <img src={c.src} alt="" className="vsim-cart-img" />
+                    <span className="vsim-cart-name">{c.name}</span>
+                    <span className="vsim-cart-price">₹{c.price}</span>
+                    <button
+                      type="button"
+                      className="vsim-cart-x"
+                      onClick={() => removeFromCart(c.id)}
+                      aria-label={`Remove ${c.name}`}
+                    >
+                      ×
+                    </button>
                   </li>
                 ))}
               </ul>
-              {receipt.length > 0 && (
-                <div className="vsim-receipt-total">
-                  <span>Total paid via UPI</span>
-                  <strong>₹{receipt.reduce((s, r) => s + r.price, 0)}</strong>
-                </div>
-              )}
+              <button
+                type="button"
+                className="vsim-pay-btn"
+                onClick={startPayment}
+                disabled={cart.length === 0 || mode !== 'idle'}
+              >
+                {cart.length === 0 ? 'Add items to pay' : `Pay ₹${cartTotal} with UPI`}
+              </button>
             </div>
+
+            {receipt.length > 0 && (
+              <div className="vsim-history">
+                <div className="vsim-history-head">Collected</div>
+                <ul className="vsim-history-list">
+                  {receipt.map((r) => (
+                    <li key={r.id} className="vsim-history-item">
+                      <img src={r.src} alt="" className="vsim-history-img" />
+                      <span className="vsim-history-name">{r.name}</span>
+                      <span className="vsim-history-price">₹{r.price}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
 
             <button type="button" className="vsim-restock" onClick={restock}>
               Restock machine
@@ -227,7 +448,7 @@ const VendingSim = () => {
         </div>
 
         <p className="vsim-footnote">
-          Tip: tap any product to dispense it. Psst — try clicking the FETCH logo a few times.
+          Tap snacks · scan the QR · push the door. (Psst — try clicking the FETCH logo a few times.)
         </p>
       </div>
     </section>
