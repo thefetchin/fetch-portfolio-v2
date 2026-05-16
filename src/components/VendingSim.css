@@ -41,7 +41,7 @@
   border: 1px solid rgba(255, 255, 255, 0.06);
 }
 
-/* LEFT WINDOW -------------------------------------------------------------- */
+/* WINDOW ------------------------------------------------------------------- */
 
 .vsim-window {
   position: relative;
@@ -53,7 +53,8 @@
   border: 1px solid rgba(255, 255, 255, 0.06);
   display: flex;
   flex-direction: column;
-  min-height: 520px;
+  min-height: 560px;
+  overflow: hidden;
 }
 
 .vsim-brand {
@@ -115,14 +116,15 @@
     radial-gradient(120% 60% at 50% 0%, rgba(255, 255, 255, 0.06), transparent 60%),
     rgba(255, 255, 255, 0.02);
   border-radius: 10px;
-  padding: 0.65rem 0.45rem 0.45rem;
+  padding: 0.65rem 0.5rem 0.5rem;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 0.5rem;
+  gap: 0.45rem;
   cursor: pointer;
   transition: transform 0.18s ease, border-color 0.18s ease, background 0.18s ease, box-shadow 0.18s ease;
   font-family: inherit;
+  color: white;
 }
 
 .vsim-slot:not(:disabled):hover {
@@ -130,8 +132,12 @@
   border-color: rgba(56, 189, 248, 0.6);
   background:
     radial-gradient(120% 60% at 50% 0%, rgba(56, 189, 248, 0.18), transparent 60%),
-    rgba(56, 189, 248, 0.05);
+    rgba(56, 189, 248, 0.06);
   box-shadow: 0 8px 22px -10px rgba(56, 189, 248, 0.45);
+}
+
+.vsim-slot:active:not(:disabled) {
+  transform: translateY(0) scale(0.98);
 }
 
 .vsim-slot:disabled {
@@ -141,16 +147,16 @@
 
 .vsim-slot-img-wrap {
   width: 100%;
-  height: 56px;
+  height: 60px;
   display: flex;
   align-items: center;
   justify-content: center;
 }
 
 .vsim-slot-img {
-  max-height: 56px;
+  max-height: 60px;
   max-width: 80%;
-  filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.35));
+  filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.4));
   pointer-events: none;
 }
 
@@ -166,81 +172,147 @@
 .vsim-slot-meta {
   display: flex;
   justify-content: space-between;
+  align-items: center;
   width: 100%;
   font-size: 0.72rem;
-  letter-spacing: 0.06em;
+  gap: 0.4rem;
 }
 
-.vsim-slot-code {
-  color: var(--brand-300);
-  font-weight: 700;
+.vsim-slot-name {
+  color: rgba(255, 255, 255, 0.85);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .vsim-slot-price {
-  color: rgba(255, 255, 255, 0.75);
-  font-weight: 600;
+  color: var(--brand-300);
+  font-weight: 700;
   font-feature-settings: 'tnum';
+  flex-shrink: 0;
 }
 
-/* DROP + TRAY -------------------------------------------------------------- */
+/* FALLING ANIMATION ------------------------------------------------------- */
 
-.vsim-tray {
-  position: relative;
-  margin-top: 0.9rem;
-  padding: 0.6rem;
-  border-radius: 12px;
-  background: rgba(0, 0, 0, 0.35);
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  min-height: 84px;
-  overflow: hidden;
-}
-
-.vsim-tray-floor {
-  display: flex;
-  align-items: center;
-  gap: 0.6rem;
-  min-height: 64px;
-  padding: 0.4rem 0.5rem;
-}
-
-.vsim-tray-hint {
-  font-size: 0.72rem;
-  letter-spacing: 0.12em;
-  color: rgba(255, 255, 255, 0.4);
-  text-transform: uppercase;
-}
-
-.vsim-tray-item {
-  height: 52px;
-  width: auto;
-  filter: drop-shadow(0 6px 10px rgba(0, 0, 0, 0.45));
-  animation: vsim-tray-pop 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
-}
-
-@keyframes vsim-tray-pop {
-  from { transform: translateY(-12px) scale(0.85); opacity: 0; }
-  to { transform: translateY(0) scale(1); opacity: 1; }
-}
-
-.vsim-drop {
+.vsim-falling {
   position: absolute;
-  left: 50%;
-  top: -64px;
+  left: 0;
+  top: 0;
+  width: 56px;
   height: 56px;
-  transform: translateX(-50%);
-  animation: vsim-fall 0.9s cubic-bezier(0.5, 0, 0.75, 0.6);
-  filter: drop-shadow(0 8px 14px rgba(0, 0, 0, 0.55));
+  object-fit: contain;
   pointer-events: none;
+  filter: drop-shadow(0 8px 16px rgba(0, 0, 0, 0.55));
+  transform: translate(calc(var(--start-x) - 28px), calc(var(--start-y) - 28px));
+  animation: vsim-fall 1s cubic-bezier(0.55, 0.05, 0.7, 0.65) forwards;
+  z-index: 4;
 }
 
 @keyframes vsim-fall {
-  0%   { transform: translate(-50%, -260px) rotate(-12deg); }
-  60%  { transform: translate(-50%, 10px) rotate(8deg); }
-  75%  { transform: translate(-50%, -6px) rotate(-4deg); }
-  100% { transform: translate(-50%, 14px) rotate(0); opacity: 0; }
+  0% {
+    transform: translate(calc(var(--start-x) - 28px), calc(var(--start-y) - 28px))
+               rotate(-8deg) scale(1);
+    opacity: 1;
+  }
+  60% {
+    transform: translate(
+                 calc(((var(--start-x) + var(--end-x)) / 2) - 28px),
+                 calc(((var(--start-y) + var(--end-y)) / 2) - 8px)
+               )
+               rotate(8deg) scale(0.98);
+  }
+  85% {
+    transform: translate(calc(var(--end-x) - 28px), calc(var(--end-y) - 28px))
+               rotate(-3deg) scale(0.95);
+    opacity: 1;
+  }
+  100% {
+    transform: translate(calc(var(--end-x) - 28px), calc(var(--end-y) - 14px))
+               rotate(0) scale(0.7);
+    opacity: 0;
+  }
 }
 
-/* RIGHT — CONTROL PANEL ---------------------------------------------------- */
+/* DELIVERY DOOR ----------------------------------------------------------- */
+
+.vsim-door {
+  margin-top: 0.9rem;
+  position: relative;
+  height: 96px;
+  border-radius: 14px;
+  background: linear-gradient(180deg, #11192c, #060a14);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow:
+    inset 0 2px 0 rgba(255, 255, 255, 0.04),
+    inset 0 -10px 30px rgba(0, 0, 0, 0.45);
+  overflow: hidden;
+  transition: box-shadow 0.25s ease, border-color 0.25s ease;
+}
+
+.vsim-door-frame {
+  position: absolute;
+  inset: 8px 12px 18px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 0.75rem;
+  border-radius: 10px;
+  background:
+    linear-gradient(180deg, rgba(56, 189, 248, 0.06), rgba(255, 255, 255, 0.01)),
+    rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(56, 189, 248, 0.16);
+  transition: background 0.25s ease, border-color 0.25s ease;
+}
+
+.vsim-door-logo {
+  height: 28px;
+  width: auto;
+  filter: brightness(0) invert(1);
+  opacity: 0.92;
+}
+
+.vsim-door-label {
+  color: rgba(255, 255, 255, 0.55);
+  font-size: 0.68rem;
+  letter-spacing: 0.22em;
+  font-weight: 700;
+}
+
+.vsim-door-slit {
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  bottom: 6px;
+  height: 5px;
+  border-radius: 3px;
+  background: linear-gradient(180deg, #000, #0a0f1c);
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.9);
+}
+
+.vsim-door.is-flashing {
+  border-color: rgba(56, 189, 248, 0.7);
+  box-shadow:
+    inset 0 0 0 1px rgba(56, 189, 248, 0.5),
+    0 0 30px -5px rgba(56, 189, 248, 0.55);
+}
+
+.vsim-door.is-flashing .vsim-door-frame {
+  background:
+    linear-gradient(180deg, rgba(56, 189, 248, 0.25), rgba(56, 189, 248, 0.05)),
+    rgba(255, 255, 255, 0.04);
+  border-color: rgba(56, 189, 248, 0.65);
+  animation: vsim-door-shake 0.22s ease;
+}
+
+@keyframes vsim-door-shake {
+  0%, 100% { transform: translateY(0); }
+  35% { transform: translateY(2px); }
+  70% { transform: translateY(-1px); }
+}
+
+/* SCREEN / PANEL ---------------------------------------------------------- */
 
 .vsim-panel {
   display: flex;
@@ -254,163 +326,170 @@
 
 .vsim-screen {
   background: #06150d;
-  border: 1px solid rgba(0, 255, 140, 0.15);
+  border: 1px solid rgba(0, 255, 140, 0.18);
   border-radius: 10px;
-  padding: 0.9rem 1rem;
+  padding: 0.85rem 1rem 1rem;
   font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
   color: #6bf2a0;
-  text-shadow: 0 0 6px rgba(107, 242, 160, 0.55);
+  text-shadow: 0 0 6px rgba(107, 242, 160, 0.5);
   box-shadow: inset 0 0 30px rgba(0, 255, 140, 0.1);
 }
 
-.vsim-screen-row {
+.vsim-screen-top {
   display: flex;
   justify-content: space-between;
-  align-items: baseline;
-  font-size: 0.7rem;
+  align-items: center;
+  font-size: 0.65rem;
   letter-spacing: 0.18em;
-  margin-bottom: 0.35rem;
-  opacity: 0.85;
+  margin-bottom: 0.6rem;
+  opacity: 0.95;
 }
 
-.vsim-screen-value {
-  font-size: 1.4rem;
-  font-weight: 700;
-  letter-spacing: 0.05em;
+.vsim-upi-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+  border: 1px solid rgba(107, 242, 160, 0.4);
+  color: #b2f7c8;
+}
+
+.vsim-upi-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #6bf2a0;
+  box-shadow: 0 0 8px rgba(107, 242, 160, 0.85);
+  animation: vsim-pulse 1.4s ease-in-out infinite;
+}
+
+.vsim-screen-time {
+  opacity: 0.55;
 }
 
 .vsim-screen-msg {
-  font-size: 0.85rem;
-  letter-spacing: 0.16em;
+  font-size: 0.9rem;
+  letter-spacing: 0.1em;
   min-height: 1.2em;
+  font-weight: 600;
 }
 
-.vsim-keypad {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 0.5rem;
+/* RECEIPT ----------------------------------------------------------------- */
+
+.vsim-receipt {
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 12px;
+  padding: 0.9rem 1rem;
+  color: rgba(255, 255, 255, 0.85);
 }
 
-.vsim-key {
-  appearance: none;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  background: linear-gradient(180deg, #2a3349, #1a2236);
-  color: white;
-  font-family: 'JetBrains Mono', ui-monospace, monospace;
-  font-weight: 700;
-  font-size: 1rem;
-  padding: 0.85rem 0;
-  border-radius: 10px;
-  cursor: pointer;
-  transition: transform 0.08s ease, background 0.2s ease, box-shadow 0.2s ease;
-  box-shadow: inset 0 -2px 0 rgba(0, 0, 0, 0.45);
-}
-
-.vsim-key:hover {
-  background: linear-gradient(180deg, #34405c, #1f2940);
-}
-
-.vsim-key:active {
-  transform: translateY(1px);
-  box-shadow: inset 0 1px 0 rgba(0, 0, 0, 0.45);
-}
-
-.vsim-key.is-ok {
-  background: linear-gradient(180deg, var(--brand-500), var(--brand-700));
-  border-color: rgba(56, 189, 248, 0.5);
-}
-
-.vsim-key.is-clr {
-  background: linear-gradient(180deg, #2a1a1a, #1a0f0f);
-  color: #ff9a9a;
-}
-
-.vsim-coins-label {
-  font-size: 0.7rem;
-  letter-spacing: 0.2em;
+.vsim-receipt-head {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.72rem;
+  letter-spacing: 0.16em;
   text-transform: uppercase;
-  color: rgba(255, 255, 255, 0.5);
-  margin-bottom: 0.5rem;
+  color: rgba(255, 255, 255, 0.55);
+  margin-bottom: 0.6rem;
 }
 
-.vsim-coins-grid {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 0.4rem;
-}
-
-.vsim-coin {
-  appearance: none;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  background: radial-gradient(120% 80% at 30% 30%, #f7d57a, #c89c2e 60%, #8e6a14);
-  color: #2c1a00;
-  font-weight: 800;
-  padding: 0.6rem 0;
-  border-radius: 999px;
-  cursor: pointer;
+.vsim-receipt-empty {
   font-size: 0.85rem;
-  font-feature-settings: 'tnum';
-  transition: transform 0.12s ease, box-shadow 0.2s ease;
-  box-shadow: inset 0 -2px 0 rgba(0, 0, 0, 0.25);
+  color: rgba(255, 255, 255, 0.4);
+  padding: 0.6rem 0;
 }
 
-.vsim-coin:hover {
-  transform: translateY(-2px) rotate(-3deg);
-  box-shadow: 0 8px 18px -6px rgba(200, 156, 46, 0.5);
+.vsim-receipt-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  max-height: 220px;
+  overflow-y: auto;
 }
 
-.vsim-actions {
+.vsim-receipt-item {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 0.5rem;
+  grid-template-columns: 28px 1fr auto;
+  align-items: center;
+  gap: 0.7rem;
+  padding: 0.4rem 0.5rem;
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 8px;
+  animation: vsim-receipt-in 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
-.vsim-btn {
+@keyframes vsim-receipt-in {
+  from { opacity: 0; transform: translateY(-6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.vsim-receipt-img {
+  width: 28px;
+  height: 28px;
+  object-fit: contain;
+}
+
+.vsim-receipt-name {
+  font-size: 0.88rem;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.vsim-receipt-price {
+  color: var(--brand-300);
+  font-weight: 700;
+  font-feature-settings: 'tnum';
+  font-size: 0.85rem;
+}
+
+.vsim-receipt-total {
+  margin-top: 0.7rem;
+  padding-top: 0.7rem;
+  border-top: 1px dashed rgba(255, 255, 255, 0.12);
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  font-size: 0.78rem;
+  letter-spacing: 0.08em;
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.vsim-receipt-total strong {
+  color: white;
+  font-size: 1.05rem;
+  font-feature-settings: 'tnum';
+}
+
+/* RESTOCK ----------------------------------------------------------------- */
+
+.vsim-restock {
   appearance: none;
   border: 1px solid rgba(255, 255, 255, 0.1);
   background: transparent;
-  color: white;
-  padding: 0.65rem 0;
+  color: rgba(255, 255, 255, 0.7);
+  padding: 0.7rem 0;
   border-radius: 10px;
   font-weight: 600;
   font-size: 0.88rem;
   cursor: pointer;
   font-family: inherit;
-  transition: background 0.2s ease, border-color 0.2s ease;
+  transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease;
 }
 
-.vsim-btn-secondary:hover {
-  background: rgba(255, 255, 255, 0.06);
-  border-color: rgba(255, 255, 255, 0.2);
-}
-
-.vsim-btn-ghost {
-  color: rgba(255, 255, 255, 0.7);
-}
-
-.vsim-btn-ghost:hover {
+.vsim-restock:hover {
   background: rgba(56, 189, 248, 0.08);
   border-color: rgba(56, 189, 248, 0.35);
   color: white;
 }
 
-.vsim-meta {
-  display: flex;
-  justify-content: space-between;
-  color: rgba(255, 255, 255, 0.5);
-  font-size: 0.72rem;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  padding-top: 0.4rem;
-  border-top: 1px dashed rgba(255, 255, 255, 0.08);
-}
-
-.vsim-meta strong {
-  color: var(--brand-300);
-  font-feature-settings: 'tnum';
-}
-
-/* FOOTNOTE ----------------------------------------------------------------- */
+/* FOOTNOTE ---------------------------------------------------------------- */
 
 .vsim-footnote {
   margin-top: 1.5rem;
@@ -419,36 +498,21 @@
   font-size: 0.9rem;
 }
 
-.vsim-footnote kbd {
-  display: inline-block;
-  padding: 0.1rem 0.45rem;
-  margin: 0 0.15rem;
-  background: var(--ink-0);
-  border: 1px solid var(--ink-200);
-  border-bottom-width: 2px;
-  border-radius: 5px;
-  font-family: 'JetBrains Mono', ui-monospace, monospace;
-  font-size: 0.82rem;
-  color: var(--ink-900);
-}
-
-/* RESPONSIVE --------------------------------------------------------------- */
+/* RESPONSIVE -------------------------------------------------------------- */
 
 @media (max-width: 900px) {
-  .vsim-machine {
-    grid-template-columns: 1fr;
-  }
-  .vsim-window {
-    min-height: 480px;
-  }
+  .vsim-machine { grid-template-columns: 1fr; }
+  .vsim-window  { min-height: 500px; }
 }
 
 @media (max-width: 520px) {
   .vsim { padding: 5rem 1rem 6rem; }
   .vsim-machine { padding: 1rem; gap: 1rem; border-radius: 20px; }
-  .vsim-shelves { grid-template-columns: repeat(3, 1fr); gap: 0.5rem; }
-  .vsim-slot { padding: 0.5rem 0.3rem 0.35rem; }
-  .vsim-slot-img-wrap { height: 44px; }
-  .vsim-slot-img { max-height: 44px; }
-  .vsim-coins-grid { grid-template-columns: repeat(4, 1fr); }
+  .vsim-shelves { gap: 0.5rem; }
+  .vsim-slot { padding: 0.5rem 0.35rem 0.4rem; }
+  .vsim-slot-img-wrap { height: 46px; }
+  .vsim-slot-img { max-height: 46px; }
+  .vsim-slot-name { font-size: 0.68rem; }
+  .vsim-door { height: 84px; }
+  .vsim-door-logo { height: 22px; }
 }

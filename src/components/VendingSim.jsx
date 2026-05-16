@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import './VendingSim.css'
 
 const CATALOG = [
@@ -13,117 +13,82 @@ const CATALOG = [
   { code: 'C3', name: 'Mint Bar',     price: 50, src: '/chocolate-3.svg',    stock: 0 },
 ]
 
-const DENOMS = [10, 20, 50, 100]
-
 const VendingSim = () => {
   const sectionRef = useRef(null)
-  const [credit, setCredit] = useState(0)
-  const [entry, setEntry] = useState('')
+  const windowRef = useRef(null)
+  const slotRefs = useRef({})
+  const doorRef = useRef(null)
+  const dropIdRef = useRef(0)
+
   const [items, setItems] = useState(CATALOG)
-  const [dropped, setDropped] = useState(null)        // currently dropping item
-  const [tray, setTray] = useState([])                // dispensed items in tray
-  const [message, setMessage] = useState('INSERT COINS')
-  const [konami, setKonami] = useState(0)             // easter egg counter
+  const [receipt, setReceipt] = useState([])  // recently dispensed items
+  const [drops, setDrops] = useState([])      // currently falling SVGs
+  const [doorFlash, setDoorFlash] = useState(false)
+  const [message, setMessage] = useState('TAP A PRODUCT · UPI READY')
+  const [konami, setKonami] = useState(0)
 
   // reveal-on-scroll
   useEffect(() => {
-    const observer = new IntersectionObserver(
-      (entries) => {
-        entries.forEach((e) => {
-          if (e.isIntersecting) e.target.classList.add('visible')
-        })
-      },
+    const node = sectionRef.current
+    if (!node) return
+    const obs = new IntersectionObserver(
+      (entries) => entries.forEach((e) => e.isIntersecting && e.target.classList.add('visible')),
       { threshold: 0.15 }
     )
-    if (sectionRef.current) observer.observe(sectionRef.current)
-    return () => sectionRef.current && observer.unobserve(sectionRef.current)
+    obs.observe(node)
+    return () => obs.unobserve(node)
   }, [])
 
-  const setMsg = (m) => {
-    setMessage(m)
-  }
-
-  const insertCoin = (n) => {
-    setCredit((c) => c + n)
-    setMsg(`+ ₹${n} · BALANCE ₹${credit + n}`)
-  }
-
-  const pressKey = (k) => {
-    if (k === 'CLR') {
-      setEntry('')
-      setMsg('READY')
-      return
-    }
-    if (k === 'OK') {
-      handleVend(entry)
-      return
-    }
-    setEntry((prev) => {
-      const next = (prev + k).slice(-2)
-      // when 2 chars, attempt vend automatically after small UX cue
-      if (next.length === 2) {
-        setTimeout(() => handleVend(next), 120)
-      } else {
-        setMsg(`SELECT · ${next}_`)
-      }
-      return next
-    })
-  }
-
-  const refund = () => {
-    if (credit === 0) {
-      setMsg('NO BALANCE')
-      return
-    }
-    setMsg(`REFUND ₹${credit}`)
-    setCredit(0)
-    setEntry('')
-  }
-
-  const handleVend = (code) => {
-    const idx = items.findIndex((it) => it.code === code)
-    if (idx === -1) {
-      setMsg(`ERR · "${code}" UNKNOWN`)
-      setEntry('')
-      return
-    }
+  const dispense = (code) => {
+    const idx = items.findIndex((i) => i.code === code)
+    if (idx === -1) return
     const item = items[idx]
     if (item.stock <= 0) {
-      setMsg(`SOLD OUT · ${item.code}`)
-      setEntry('')
-      return
-    }
-    if (credit < item.price) {
-      setMsg(`NEED ₹${item.price - credit} MORE`)
-      setEntry('')
+      setMessage(`SOLD OUT · ${item.name.toUpperCase()}`)
       return
     }
 
-    // dispense
+    const slotEl = slotRefs.current[code]
+    const winEl = windowRef.current
+    const doorEl = doorRef.current
+    if (!slotEl || !winEl || !doorEl) return
+
+    const slotRect = slotEl.getBoundingClientRect()
+    const winRect = winEl.getBoundingClientRect()
+    const doorRect = doorEl.getBoundingClientRect()
+
+    const startX = slotRect.left - winRect.left + slotRect.width / 2
+    const startY = slotRect.top - winRect.top + slotRect.height / 2 + 4
+    const endX = doorRect.left - winRect.left + doorRect.width / 2
+    const endY = doorRect.top - winRect.top + doorRect.height / 2
+
+    const id = ++dropIdRef.current
+    setDrops((d) => [...d, { id, src: item.src, startX, startY, endX, endY }])
+
+    // commit stock + UI updates immediately so subsequent clicks are responsive
     const newItems = [...items]
     newItems[idx] = { ...item, stock: item.stock - 1 }
     setItems(newItems)
-    setCredit((c) => c - item.price)
-    setEntry('')
-    setDropped({ ...item, id: Date.now() })
-    setMsg(`DISPENSING · ${item.name.toUpperCase()}`)
+    setMessage(`UPI ✓  ₹${item.price} · ${item.name.toUpperCase()}`)
 
+    // flash door on landing and add to receipt
+    setTimeout(() => setDoorFlash(true), 850)
     setTimeout(() => {
-      setTray((t) => [...t.slice(-3), { ...item, id: Date.now() + 1 }])
-      setDropped(null)
-      setMsg('ENJOY · THANK YOU')
-    }, 900)
+      setDoorFlash(false)
+      setReceipt((r) => [
+        { id, name: item.name, price: item.price, src: item.src },
+        ...r,
+      ].slice(0, 5))
+      setDrops((d) => d.filter((x) => x.id !== id))
+    }, 1050)
   }
 
-  const reset = () => {
+  const restock = () => {
     setItems(CATALOG)
-    setTray([])
-    setCredit(0)
-    setEntry('')
-    setMsg('RESTOCKED')
+    setReceipt([])
+    setMessage('RESTOCKED · TAP A PRODUCT')
   }
 
-  // easter egg: 5 clicks on the brand panel triggers a free chocolate
   const onBrandClick = () => {
     const next = konami + 1
     setKonami(next)
@@ -131,19 +96,11 @@ const VendingSim = () => {
       setKonami(0)
       const choco = items.find((i) => i.code === 'C1' && i.stock > 0)
       if (choco) {
-        setTray((t) => [...t.slice(-3), { ...choco, id: Date.now() }])
-        const idx = items.findIndex((i) => i.code === 'C1')
-        const newItems = [...items]
-        newItems[idx] = { ...choco, stock: choco.stock - 1 }
-        setItems(newItems)
-        setMsg('🎉 ON THE HOUSE')
+        dispense('C1')
+        setMessage('🎉 ON THE HOUSE · ENJOY')
       }
     }
   }
-
-  const keypadKeys = ['A', 'B', 'C', '1', '2', '3', 'CLR', '0', 'OK']
-
-  const totalStock = useMemo(() => items.reduce((s, it) => s + it.stock, 0), [items])
 
   return (
     <section id="simulator" ref={sectionRef} className="vsim">
@@ -151,21 +108,21 @@ const VendingSim = () => {
         <div className="vsim-header">
           <span className="eyebrow">Try it yourself</span>
           <h2 className="section-title">
-            Take a Fetch machine for a <span className="accent-text">spin.</span>
+            Tap any snack. <span className="accent-text">Pay with UPI.</span>
           </h2>
           <p className="section-description">
-            Insert virtual coins, punch in a code, and watch your snack drop.
-            A tiny taste of how every Fetch machine works in the wild.
+            Every Fetch machine ships with a touch UI and on-screen UPI checkout —
+            no codes, no fumbling for change. Give it a go.
           </p>
         </div>
 
         <div className="vsim-machine" role="application" aria-label="Vending machine simulator">
-          {/* LEFT — GLASS WINDOW WITH PRODUCTS */}
-          <div className="vsim-window">
+          {/* GLASS WINDOW */}
+          <div className="vsim-window" ref={windowRef}>
             <div className="vsim-brand" onClick={onBrandClick} title="Fetch™">
               <span>FETCH</span>
               <span className="vsim-brand-dot" />
-              <span className="vsim-brand-small">SmartVend 01</span>
+              <span className="vsim-brand-small">SmartVend 01 · UPI</span>
             </div>
 
             <div className="vsim-shelves">
@@ -173,10 +130,11 @@ const VendingSim = () => {
                 <button
                   key={it.code}
                   type="button"
+                  ref={(el) => (slotRefs.current[it.code] = el)}
                   className={`vsim-slot ${it.stock === 0 ? 'is-empty' : ''}`}
-                  onClick={() => handleVend(it.code)}
+                  onClick={() => dispense(it.code)}
                   disabled={it.stock === 0}
-                  aria-label={`${it.code} ${it.name}, ₹${it.price}, ${it.stock} in stock`}
+                  aria-label={`${it.name}, ₹${it.price}, ${it.stock} in stock`}
                 >
                   <div className="vsim-slot-img-wrap">
                     {it.stock > 0 ? (
@@ -186,88 +144,90 @@ const VendingSim = () => {
                     )}
                   </div>
                   <div className="vsim-slot-meta">
-                    <span className="vsim-slot-code">{it.code}</span>
+                    <span className="vsim-slot-name">{it.name}</span>
                     <span className="vsim-slot-price">₹{it.price}</span>
                   </div>
                 </button>
               ))}
             </div>
 
-            <div className="vsim-tray" aria-live="polite">
-              {dropped && (
-                <img
-                  key={dropped.id}
-                  src={dropped.src}
-                  alt=""
-                  className="vsim-drop"
-                />
-              )}
-              <div className="vsim-tray-floor">
-                {tray.map((t) => (
-                  <img key={t.id} src={t.src} alt={t.name} className="vsim-tray-item" />
-                ))}
-                {tray.length === 0 && <span className="vsim-tray-hint">Dispensed items appear here</span>}
+            {/* falling products */}
+            {drops.map((d) => (
+              <img
+                key={d.id}
+                src={d.src}
+                alt=""
+                className="vsim-falling"
+                style={{
+                  '--start-x': `${d.startX}px`,
+                  '--start-y': `${d.startY}px`,
+                  '--end-x': `${d.endX}px`,
+                  '--end-y': `${d.endY}px`,
+                }}
+                aria-hidden="true"
+              />
+            ))}
+
+            {/* DELIVERY DOOR */}
+            <div
+              ref={doorRef}
+              className={`vsim-door ${doorFlash ? 'is-flashing' : ''}`}
+              aria-hidden="true"
+            >
+              <div className="vsim-door-frame">
+                <img src="/fetch-logo.svg" alt="" className="vsim-door-logo" />
+                <span className="vsim-door-label">PUSH · COLLECT</span>
               </div>
+              <div className="vsim-door-slit" />
             </div>
           </div>
 
-          {/* RIGHT — CONTROL PANEL */}
+          {/* CONTROL / SCREEN PANEL */}
           <div className="vsim-panel">
             <div className="vsim-screen" role="status" aria-live="polite">
-              <div className="vsim-screen-row">
-                <span className="vsim-screen-label">BAL</span>
-                <span className="vsim-screen-value">₹{credit}</span>
+              <div className="vsim-screen-top">
+                <span className="vsim-upi-chip">
+                  <span className="vsim-upi-dot" />
+                  UPI ONLINE
+                </span>
+                <span className="vsim-screen-time">FETCH OS</span>
               </div>
               <div className="vsim-screen-msg">{message}</div>
             </div>
 
-            <div className="vsim-keypad">
-              {keypadKeys.map((k) => (
-                <button
-                  key={k}
-                  type="button"
-                  className={`vsim-key ${k === 'OK' ? 'is-ok' : ''} ${k === 'CLR' ? 'is-clr' : ''}`}
-                  onClick={() => pressKey(k)}
-                >
-                  {k}
-                </button>
-              ))}
-            </div>
-
-            <div className="vsim-coins">
-              <div className="vsim-coins-label">Insert</div>
-              <div className="vsim-coins-grid">
-                {DENOMS.map((d) => (
-                  <button
-                    key={d}
-                    type="button"
-                    className="vsim-coin"
-                    onClick={() => insertCoin(d)}
-                  >
-                    ₹{d}
-                  </button>
-                ))}
+            <div className="vsim-receipt">
+              <div className="vsim-receipt-head">
+                <span>Your order</span>
+                <span>{receipt.length} items</span>
               </div>
+              {receipt.length === 0 && (
+                <div className="vsim-receipt-empty">Items you collect will appear here.</div>
+              )}
+              <ul className="vsim-receipt-list">
+                {receipt.map((r) => (
+                  <li key={r.id} className="vsim-receipt-item">
+                    <img src={r.src} alt="" className="vsim-receipt-img" />
+                    <span className="vsim-receipt-name">{r.name}</span>
+                    <span className="vsim-receipt-price">₹{r.price}</span>
+                  </li>
+                ))}
+              </ul>
+              {receipt.length > 0 && (
+                <div className="vsim-receipt-total">
+                  <span>Total paid via UPI</span>
+                  <strong>₹{receipt.reduce((s, r) => s + r.price, 0)}</strong>
+                </div>
+              )}
             </div>
 
-            <div className="vsim-actions">
-              <button type="button" className="vsim-btn vsim-btn-secondary" onClick={refund}>
-                Refund
-              </button>
-              <button type="button" className="vsim-btn vsim-btn-ghost" onClick={reset}>
-                Restock
-              </button>
-            </div>
-
-            <div className="vsim-meta">
-              <span>Stock <strong>{totalStock}</strong></span>
-              <span>UPI · Cards · Cash</span>
-            </div>
+            <button type="button" className="vsim-restock" onClick={restock}>
+              Restock machine
+            </button>
           </div>
         </div>
 
         <p className="vsim-footnote">
-          Tip: punch <kbd>A</kbd><kbd>1</kbd> after adding credit. (Psst — try clicking the FETCH logo a few times.)
+          Tip: tap any product to dispense it. Psst — try clicking the FETCH logo a few times.
         </p>
       </div>
     </section>
