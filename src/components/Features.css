@@ -101,5 +101,8 @@
 }
 
 @media (max-width: 600px) {
-  .features-grid { grid-template-columns: 1fr; }
+  .features { padding: 4.5rem 1.25rem 5rem; }
+  .features-header { margin-bottom: 2.5rem; }
+  .features-grid { grid-template-columns: 1fr; gap: 1rem; }
+  .feature-card { padding: 1.5rem 1.25rem 1.4rem; }
 }

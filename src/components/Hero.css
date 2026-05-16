@@ -350,14 +350,23 @@
 
 @media (max-width: 768px) {
   .hero {
-    padding: 120px 1.5rem 80px;
+    padding: 110px 1.25rem 64px;
+  }
+
+  .hero-title {
+    font-size: clamp(2.25rem, 9vw, 3.25rem);
+  }
+
+  .hero-subtitle {
+    font-size: 1rem;
+    margin-bottom: 2rem;
   }
 
   .hero-stats {
     flex-direction: column;
-    gap: 1.5rem;
-    margin-top: 3rem;
-    padding-top: 2rem;
+    gap: 1.25rem;
+    margin-top: 2.5rem;
+    padding-top: 1.75rem;
   }
 
   .stat-divider {
@@ -372,40 +381,38 @@
 
   .btn {
     width: 100%;
+    min-height: 48px;
+    padding: 0.9rem 1.5rem;
+    justify-content: center;
+  }
+
+  .product-svg {
+    width: 48px;
+    height: 48px;
+  }
+
+  .floating-product {
+    opacity: 0.18;
   }
 }
 
 @media (max-width: 568px) {
   .hero {
-    padding: 100px 1rem 60px;
+    padding: 96px 1rem 56px;
   }
 
   .gradient-orb {
     filter: blur(60px);
   }
 
-  .orb-1 {
-    width: 250px;
-    height: 250px;
-  }
+  .orb-1 { width: 240px; height: 240px; }
+  .orb-2 { width: 200px; height: 200px; }
+  .orb-3 { width: 160px; height: 160px; }
 
-  .orb-2 {
-    width: 200px;
-    height: 200px;
-  }
-
-  .orb-3 {
-    width: 150px;
-    height: 150px;
-  }
-
-  .product-svg {
-    width: 40px;
-    height: 40px;
-  }
-
-  .floating-product {
-    opacity: 0.4;
+  /* on very small screens, hide the decorative SVGs so they
+     don't compete with the headline */
+  .floating-products {
+    display: none;
   }
 }
 

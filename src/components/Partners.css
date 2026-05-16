@@ -136,16 +136,20 @@
 
 @media (max-width: 768px) {
   .partners {
-    padding: 80px 1.5rem;
+    padding: 4.5rem 1.25rem 5rem;
   }
 
   .partners-grid {
     grid-template-columns: 1fr;
-    gap: 2rem;
+    gap: 1rem;
   }
 
   .partner-card {
-    padding: 2rem;
+    padding: 1.75rem 1.5rem;
+  }
+
+  .partner-title {
+    font-size: 1.4rem;
   }
 }
 
