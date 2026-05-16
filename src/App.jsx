@@ -6,6 +6,7 @@ import About from './components/About'
 import Features from './components/Features'
 import Partners from './components/Partners'
 import Portfolio from './components/Portfolio'
+import VendingSim from './components/VendingSim'
 import Contact from './components/Contact'
 import Footer from './components/Footer'
 import './App.css'
@@ -28,6 +29,7 @@ function App() {
       <Features />
       <Partners />
       <Portfolio />
+      <VendingSim />
       <Contact />
       <Footer />
     </div>
