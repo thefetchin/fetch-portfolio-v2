@@ -58,11 +58,12 @@ const Portfolio = () => {
     <section id="portfolio" ref={portfolioRef} className="portfolio">
       <div className="portfolio-container">
         <div className="portfolio-header">
+          <span className="eyebrow">Portfolio</span>
           <h2 className="section-title">
-            Our <span className="accent-text">Portfolio</span>
+            Smart vending, <span className="accent-text">in the wild</span>
           </h2>
           <p className="section-description">
-            See how smart retail solutions transform different spaces
+            A look at how Fetch transforms different environments — from corporate floors to transit hubs.
           </p>
         </div>
         <div className="portfolio-grid">

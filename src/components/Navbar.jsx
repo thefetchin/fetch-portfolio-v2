@@ -25,9 +25,16 @@ const Navbar = ({ scrollY }) => {
         </div>
         <div className={`nav-menu ${isMenuOpen ? 'active' : ''}`}>
           <a href="#about" onClick={(e) => { e.preventDefault(); scrollToSection('about') }}>About</a>
+          <a href="#features" onClick={(e) => { e.preventDefault(); scrollToSection('features') }}>Why Fetch</a>
           <a href="#partners" onClick={(e) => { e.preventDefault(); scrollToSection('partners') }}>Partners</a>
           <a href="#portfolio" onClick={(e) => { e.preventDefault(); scrollToSection('portfolio') }}>Portfolio</a>
-          <a href="#contact" onClick={(e) => { e.preventDefault(); scrollToSection('contact') }}>Contact</a>
+          <button
+            type="button"
+            className="nav-cta"
+            onClick={() => scrollToSection('contact')}
+          >
+            Get in touch
+          </button>
         </div>
         <button 
           className={`nav-toggle ${isMenuOpen ? 'active' : ''}`}

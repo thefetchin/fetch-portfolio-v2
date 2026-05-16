@@ -3,23 +3,16 @@
   overflow-x: hidden;
 }
 
-/* Smooth scroll animations */
+/* Section reveal-on-scroll */
 section {
   opacity: 0;
-  transform: translateY(30px);
-  transition: opacity 0.6s ease-out, transform 0.6s ease-out;
-  scroll-snap-align: start;
-  scroll-snap-stop: always;
+  transform: translateY(28px);
+  transition: opacity 0.7s cubic-bezier(0.22, 1, 0.36, 1),
+              transform 0.7s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
-section.visible {
+section.visible,
+.hero {
   opacity: 1;
   transform: translateY(0);
 }
-
-/* Footer doesn't need scroll snap */
-footer {
-  scroll-snap-align: none;
-  scroll-snap-stop: normal;
-}
-

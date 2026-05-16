@@ -1,29 +1,38 @@
 .about {
-  padding: 120px 2rem;
-  background: var(--bg-secondary);
+  padding: 7rem 1.5rem 8rem;
+  background: var(--ink-0);
 }
 
 .about-container {
-  max-width: 1000px;
+  max-width: 1040px;
   margin: 0 auto;
 }
 
-.section-title {
-  font-size: clamp(2rem, 4vw, 3rem);
+.about-content .eyebrow {
+  display: inline-block;
+  font-size: 0.75rem;
   font-weight: 700;
-  margin-bottom: 1.5rem;
-  color: var(--text-primary);
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--brand-600);
+  margin-bottom: 1rem;
 }
 
-.section-title .accent-text {
-  color: var(--accent-color);
+.section-title {
+  font-size: clamp(2.1rem, 4.2vw, 3.25rem);
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+  margin-bottom: 1.25rem;
+  color: var(--ink-900);
 }
 
 .section-description {
-  font-size: 1.1rem;
-  color: var(--text-secondary);
-  line-height: 1.8;
+  font-size: 1.08rem;
+  color: var(--ink-500);
+  line-height: 1.75;
   margin-bottom: 3rem;
+  max-width: 720px;
 }
 
 .transformation-grid {
@@ -73,26 +82,29 @@
 
 .highlight-item {
   display: flex;
-  gap: 1.5rem;
-  padding: 2rem;
-  background: var(--bg-secondary);
-  border-radius: 16px;
-  transition: all 0.3s ease;
+  gap: 1.25rem;
+  padding: 1.75rem;
+  background: var(--ink-50);
+  border: 1px solid var(--ink-100);
+  border-radius: var(--radius-lg);
+  transition: transform 0.3s ease, box-shadow 0.3s ease, border-color 0.3s ease, background 0.3s ease;
 }
 
 .highlight-item:hover {
-  background: white;
-  box-shadow: 0 10px 30px rgba(146, 221, 250, 0.1);
+  background: var(--ink-0);
+  border-color: var(--brand-200);
+  box-shadow: var(--shadow-md);
   transform: translateY(-4px);
 }
 
 .highlight-number {
-  font-size: 2.5rem;
-  font-weight: 700;
-  color: var(--accent-color);
-  opacity: 0.3;
+  font-size: 1.5rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  color: var(--brand-600);
   line-height: 1;
   flex-shrink: 0;
+  font-feature-settings: 'tnum';
 }
 
 .highlight-content h3 {

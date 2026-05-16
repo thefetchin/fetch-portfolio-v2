@@ -101,31 +101,48 @@ const Hero = () => {
       <div className="hero-container">
         <div className="hero-content">
           <div className="hero-badge">
-            <span>Smart Retail Solutions</span>
+            <span>Smart Retail · IoT-Powered</span>
           </div>
           <h1 className="hero-title">
-            Transform Your Space
+            Intelligent vending
             <br />
-            <span className="accent-text">With Intelligent Vending</span>
+            for <span className="accent-text">modern spaces.</span>
           </h1>
           <p className="hero-subtitle">
-            Elevate your environment with smart retail solutions that seamlessly 
-            integrate into any space, bringing convenience and modern technology together.
+            Fetch designs, deploys and operates a network of connected vending machines —
+            stocking the brands your visitors already love, with the analytics your business needs.
           </p>
           <div className="hero-buttons">
-            <button 
+            <button
               className="btn btn-primary"
               onClick={() => scrollToSection('contact')}
             >
-              Transform Your Space
+              Host a machine
               <span className="btn-arrow">→</span>
             </button>
-            <button 
+            <button
               className="btn btn-secondary"
-              onClick={() => scrollToSection('portfolio')}
+              onClick={() => scrollToSection('features')}
             >
-              View Portfolio
+              See what's inside
             </button>
+          </div>
+
+          <div className="hero-stats" aria-label="At a glance">
+            <div className="stat-item">
+              <div className="stat-value">24/7</div>
+              <div className="stat-label">Always-on convenience</div>
+            </div>
+            <span className="stat-divider" aria-hidden="true" />
+            <div className="stat-item">
+              <div className="stat-value">100%</div>
+              <div className="stat-label">Cashless &amp; UPI ready</div>
+            </div>
+            <span className="stat-divider" aria-hidden="true" />
+            <div className="stat-item">
+              <div className="stat-value">Live</div>
+              <div className="stat-label">Inventory telemetry</div>
+            </div>
           </div>
         </div>
       </div>

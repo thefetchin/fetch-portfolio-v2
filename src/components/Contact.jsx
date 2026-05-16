@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import emailjs from '@emailjs/browser'
+import { FiMail, FiPhone, FiMapPin } from 'react-icons/fi'
 import './Contact.css'
 
 const Contact = () => {
@@ -109,27 +110,29 @@ const Contact = () => {
     <section id="contact" ref={contactRef} className="contact">
       <div className="contact-container">
         <div className="contact-header">
+          <span className="eyebrow">Contact</span>
           <h2 className="section-title">
-            Get In <span className="accent-text">Touch</span>
+            Let's put smart vending in <span className="accent-text">your space.</span>
           </h2>
           <p className="section-description">
-            Ready to transform your space with smart retail solutions? Let's talk.
+            Tell us about your location and we'll come back within one business day with
+            a recommendation and a plan.
           </p>
         </div>
         <div className="contact-content">
           <div className="contact-info">
             <div className="info-card">
-              <div className="info-icon">📧</div>
+              <div className="info-icon"><FiMail aria-hidden="true" /></div>
               <h3>Email</h3>
               <a href="mailto:thefetch.in@gmail.com" className="info-link">thefetch.in@gmail.com</a>
             </div>
             <div className="info-card">
-              <div className="info-icon">📞</div>
+              <div className="info-icon"><FiPhone aria-hidden="true" /></div>
               <h3>Phone</h3>
-              <a href="tel:+919019526185" className="info-link">+91 9019526185</a>
+              <a href="tel:+919019526185" className="info-link">+91 90195 26185</a>
             </div>
             <div className="info-card">
-              <div className="info-icon">📍</div>
+              <div className="info-icon"><FiMapPin aria-hidden="true" /></div>
               <h3>Address</h3>
               <p className="info-address">Lucia Mansion, Kalpane Kulshekara,<br />Mangalore - 575005</p>
             </div>
