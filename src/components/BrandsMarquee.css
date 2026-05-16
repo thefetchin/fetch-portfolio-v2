@@ -55,9 +55,9 @@
 .brands-marquee__track {
   display: flex;
   align-items: center;
-  gap: 3.5rem;
+  gap: 1rem;
   width: max-content;
-  animation: marquee-scroll 38s linear infinite;
+  animation: marquee-scroll 42s linear infinite;
   will-change: transform;
 }
 
@@ -66,37 +66,75 @@
   animation-play-state: paused;
 }
 
+/* Each brand is a "chip": an image, or a coloured text wordmark fallback */
 .brands-marquee__item {
   position: relative;
   display: inline-flex;
   align-items: center;
-  height: 56px;
-  padding: 0 1.25rem;
+  justify-content: center;
+  height: 64px;
+  min-width: 160px;
+  padding: 0 1.5rem;
   white-space: nowrap;
-  background: transparent;
-  border: none;
+  background: var(--ink-0);
+  border: 1px solid var(--ink-100);
+  border-radius: 16px;
+  box-shadow: 0 1px 0 rgba(15, 23, 42, 0.02);
   cursor: pointer;
   font-family: inherit;
   color: inherit;
+  transition:
+    transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1),
+    box-shadow 0.25s ease,
+    border-color 0.25s ease,
+    background 0.25s ease;
 }
 
+.brands-marquee__item:hover {
+  transform: translateY(-2px);
+  border-color: color-mix(in oklab, var(--brand-color, var(--brand-500)) 35%, var(--ink-100));
+  box-shadow:
+    0 12px 26px -16px color-mix(in oklab, var(--brand-color, var(--brand-500)) 70%, transparent),
+    0 1px 0 rgba(15, 23, 42, 0.03);
+}
+
+/* Logo image (when public/brands/<slug>.svg|png|webp exists) */
+.brands-marquee__logo {
+  max-height: 36px;
+  max-width: 140px;
+  width: auto;
+  height: auto;
+  display: block;
+  filter: grayscale(1) contrast(0.95);
+  opacity: 0.75;
+  transition: filter 0.25s ease, opacity 0.25s ease;
+}
+
+.brands-marquee__item:hover .brands-marquee__logo {
+  filter: grayscale(0) contrast(1);
+  opacity: 1;
+}
+
+/* Coloured wordmark fallback when no logo file is present */
 .brands-marquee__wordmark {
   font-family: 'Inter', sans-serif;
-  font-size: clamp(1.25rem, 1.8vw, 1.6rem);
+  font-size: clamp(1.1rem, 1.6vw, 1.4rem);
   font-weight: 800;
   letter-spacing: -0.02em;
-  color: var(--ink-700);
-  opacity: 0.6;
-  transition: opacity 0.25s ease, color 0.25s ease, transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+  color: var(--brand-color, var(--ink-700));
+  opacity: 0.85;
   display: inline-block;
+  transition:
+    opacity 0.25s ease,
+    transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
 .brands-marquee__item:hover .brands-marquee__wordmark {
   opacity: 1;
-  color: var(--brand-600);
   transform: translateY(-1px);
 }
 
+/* Easter-egg emoji that floats up on tap */
 .brands-marquee__emoji {
   position: absolute;
   left: 50%;
@@ -107,10 +145,15 @@
   pointer-events: none;
 }
 
-.brands-marquee__item.is-popping .brands-marquee__wordmark {
+.brands-marquee__item.is-popping {
+  transform: scale(1.06);
+  border-color: var(--brand-color, var(--brand-500));
+}
+
+.brands-marquee__item.is-popping .brands-marquee__wordmark,
+.brands-marquee__item.is-popping .brands-marquee__logo {
   opacity: 1;
-  color: var(--brand-600);
-  transform: scale(1.3);
+  filter: none;
 }
 
 .brands-marquee__item.is-popping .brands-marquee__emoji {
@@ -130,12 +173,19 @@
 
 @media (prefers-reduced-motion: reduce) {
   .brands-marquee__track {
-    animation-duration: 120s;
+    animation-duration: 140s;
   }
 }
 
 @media (max-width: 768px) {
   .brands-marquee { padding: 3rem 0 3.25rem; }
-  .brands-marquee__track { gap: 2.25rem; animation-duration: 28s; }
-  .brands-marquee__item { height: 44px; padding: 0 0.75rem; }
+  .brands-marquee__track { gap: 0.75rem; animation-duration: 32s; }
+  .brands-marquee__item {
+    height: 56px;
+    min-width: 130px;
+    padding: 0 1rem;
+    border-radius: 14px;
+  }
+  .brands-marquee__logo { max-height: 30px; max-width: 110px; }
+  .brands-marquee__wordmark { font-size: 1.05rem; }
 }
