@@ -26,3 +26,7 @@ dist-ssr
 *.sln
 *.sw?
 
+
+# Claude Code harness worktrees and local state — never commit these
+.claude/worktrees/
+.claude/plans/
