@@ -109,9 +109,10 @@ const Hero = () => {
             <span className="accent-text">end to end.</span>
           </h1>
           <p className="hero-subtitle">
-            Fetch Pods bring connected vending into your space. Fetch Grid (in
-            development) links the retailers running them with the distributors
-            stocking them — one platform across the network.
+            Fetch Pods bring connected vending into your space. Fetch Grid
+            (in development) is the retail operations platform that connects
+            any retailer with their distributors and runs the day-to-day
+            between them.
           </p>
           <div className="hero-buttons">
             <button

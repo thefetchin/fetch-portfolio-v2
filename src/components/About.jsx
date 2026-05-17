@@ -39,10 +39,10 @@ const About = () => {
             Fetch is a smart retail technology company. We design and operate
             <strong> Fetch Pods</strong> — connected vending machines deployed
             across offices, campuses, healthcare and transit hubs — and we are
-            building <strong>Fetch Grid</strong>, the software platform that
-            links the retailers running those Pods with the distributors stocking
-            them. Hardware on the ground, software in the cloud, one network
-            end to end.
+            building <strong>Fetch Grid</strong>, the retail operations
+            platform that connects any retailer with their distributors and
+            runs the moving parts between them. Hardware on the ground,
+            software in the cloud, one network end to end.
           </p>
           <div className="about-highlights">
             <div className="highlight-item">
@@ -56,14 +56,14 @@ const About = () => {
               <div className="highlight-number">02</div>
               <div className="highlight-content">
                 <h3>Software that connects</h3>
-                <p>Fetch Grid (in development) brings retailers, distributors and brand teams onto one platform for restocking, analytics and settlement.</p>
+                <p>Fetch Grid (in development) is a retail operations platform — discover distributors, manage stock, sales and settlement across every retail surface in one place.</p>
               </div>
             </div>
             <div className="highlight-item">
               <div className="highlight-number">03</div>
               <div className="highlight-content">
                 <h3>One network, end to end</h3>
-                <p>From the Pod on the wall to the distributor's warehouse, every SKU, sale and shipment lives on the same network.</p>
+                <p>From the Pod on the wall to the brick-and-mortar shelf to the distributor's warehouse, every SKU, sale and shipment lives on the same network.</p>
               </div>
             </div>
           </div>
