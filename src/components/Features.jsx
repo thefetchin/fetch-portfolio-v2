@@ -64,13 +64,14 @@ const Features = () => {
     <section id="features" ref={ref} className="features">
       <div className="features-container">
         <div className="features-header">
-          <span className="eyebrow">Why Fetch</span>
+          <span className="eyebrow">Inside Fetch Pods</span>
           <h2 className="section-title">
             Vending, <span className="accent-text">re-engineered</span> for modern spaces.
           </h2>
           <p className="section-description">
-            We pair industrial-grade hardware with cloud-native software so every machine
-            in our network performs like a flagship retail point.
+            Every Pod ships with industrial-grade hardware and cloud-native software, so
+            it performs like a flagship retail point — and feeds clean data straight
+            into the wider Fetch network.
           </p>
         </div>
 

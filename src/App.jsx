@@ -3,6 +3,7 @@ import Navbar from './components/Navbar'
 import Hero from './components/Hero'
 import BrandsMarquee from './components/BrandsMarquee'
 import About from './components/About'
+import Products from './components/Products'
 import Features from './components/Features'
 import Partners from './components/Partners'
 import Portfolio from './components/Portfolio'
@@ -47,6 +48,7 @@ function AppInner() {
       <Hero />
       <BrandsMarquee />
       <About />
+      <Products />
       <Features />
       <Partners />
       <Portfolio />
