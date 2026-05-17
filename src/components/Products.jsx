@@ -10,10 +10,10 @@ const PODS_FEATURES = [
 ]
 
 const GRID_FEATURES = [
-  'Real-time SKU performance across the network',
-  'Automated restocking from distributor catalogs',
-  'Demand insights for retailers and brand teams',
-  'Settlement, billing and audit in one place',
+  'Discover and onboard distributors in one place',
+  'Real-time inventory and sales across every retail surface',
+  'Automated reordering, returns and reconciliation',
+  'Settlement, billing and audit for retailers and distributors',
 ]
 
 const Products = () => {
@@ -45,9 +45,9 @@ const Products = () => {
             Two products. <span className="accent-text">One smart-retail network.</span>
           </h2>
           <p className="section-description">
-            Fetch Pods are the connected vending machines on the ground. Fetch Grid
-            is the software linking the retailers running them with the distributors
-            stocking them.
+            Fetch Pods are connected vending machines on the ground. Fetch Grid is
+            the retail operations platform that connects <em>any</em> retailer with
+            their distributors and runs the day-to-day between them.
           </p>
         </div>
 
@@ -131,8 +131,9 @@ const Products = () => {
                 </span>
                 <h3 className="product-card__title">Fetch Grid</h3>
                 <p className="product-card__tag">
-                  The software platform that links retailers and distributors —
-                  built on top of the data flowing through every Pod.
+                  The retail operations platform connecting any retailer with
+                  their distributors — Pods, stores, kiosks and warehouses on
+                  one network.
                 </p>
               </div>
 
