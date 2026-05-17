@@ -39,6 +39,7 @@ const Footer = () => {
               <a href="#about" onClick={(e) => { e.preventDefault(); scrollTo('about') }}>About</a>
               <a href="#partners" onClick={(e) => { e.preventDefault(); scrollTo('partners') }}>Partners</a>
               <a href="#portfolio" onClick={(e) => { e.preventDefault(); scrollTo('portfolio') }}>Portfolio</a>
+              <a href="#careers" onClick={(e) => { e.preventDefault(); scrollTo('careers') }}>Careers</a>
             </div>
             <div className="footer-column">
               <h4>Contact</h4>

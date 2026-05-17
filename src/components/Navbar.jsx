@@ -28,6 +28,7 @@ const Navbar = ({ scrollY }) => {
           <a href="#products" onClick={(e) => { e.preventDefault(); scrollToSection('products') }}>Products</a>
           <a href="#partners" onClick={(e) => { e.preventDefault(); scrollToSection('partners') }}>Partners</a>
           <a href="#portfolio" onClick={(e) => { e.preventDefault(); scrollToSection('portfolio') }}>Portfolio</a>
+          <a href="#careers" onClick={(e) => { e.preventDefault(); scrollToSection('careers') }}>Careers</a>
           <a href="#simulator" onClick={(e) => { e.preventDefault(); scrollToSection('simulator') }}>Try a Pod</a>
           <button
             type="button"
