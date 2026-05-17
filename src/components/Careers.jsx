@@ -3,7 +3,6 @@ import {
   FiCode,
   FiCpu,
   FiMap,
-  FiBriefcase,
   FiPenTool,
   FiArrowRight,
 } from 'react-icons/fi'
@@ -11,39 +10,34 @@ import './Careers.css'
 
 const APPLY_EMAIL = 'thefetch.in@gmail.com'
 
+// We're hiring interns right now. Full-time roles will open later — for now
+// keep the page focused on internship applications only.
 const ROLES = [
   {
     icon: FiCode,
     title: 'Software Engineering',
-    types: ['Internship', 'Full-time'],
+    types: ['Internship'],
     blurb:
-      'Build Fetch Grid — distributor APIs, retailer dashboards and the data plane behind every Pod. React, Node, Postgres, real customers shipping every week.',
+      'Help build Fetch Grid — distributor APIs, retailer dashboards and the data plane behind every Pod. React, Node, Postgres, real customers shipping every week.',
   },
   {
     icon: FiCpu,
     title: 'Hardware & Firmware',
-    types: ['Internship', 'Full-time'],
+    types: ['Internship'],
     blurb:
-      'Design and ship the next generation of Fetch Pods — embedded firmware, payments, sensors and reliable connectivity in the wild.',
+      'Help design and ship the next generation of Fetch Pods — embedded firmware, payments, sensors and reliable connectivity in the wild.',
   },
   {
     icon: FiMap,
     title: 'Operations & Deployments',
-    types: ['Internship', 'Full-time'],
+    types: ['Internship'],
     blurb:
-      'Roll out new Pods on the ground and onboard distributors onto Grid. Field ops, supply chain and a lot of fast problem-solving.',
-  },
-  {
-    icon: FiBriefcase,
-    title: 'Business Development',
-    types: ['Full-time'],
-    blurb:
-      'Partner with retailers, brands and distributors to grow the Fetch network. Own deals end-to-end — outreach, demos, contracts, onboarding.',
+      'Help roll out new Pods on the ground and onboard distributors onto Grid. Field ops, supply chain and a lot of fast problem-solving.',
   },
   {
     icon: FiPenTool,
     title: 'Product Design',
-    types: ['Internship', 'Full-time'],
+    types: ['Internship'],
     blurb:
       'Shape the touch UI on every Pod and the dashboards inside Grid. Visual, interaction and a healthy dose of motion design.',
   },
@@ -75,14 +69,14 @@ const Careers = () => {
     <section id="careers" ref={ref} className="careers">
       <div className="careers-container">
         <div className="careers-header">
-          <span className="eyebrow">Careers · We're hiring</span>
+          <span className="eyebrow">Internships at Fetch</span>
           <h2 className="section-title">
             Help us build the <span className="accent-text">smart retail stack.</span>
           </h2>
           <p className="section-description">
             Fetch is a small, hungry team turning India's retail floor into a
-            connected network. If you want to ship hardware, software or
-            relationships that show up in the real world, come work with us.
+            connected network. We're hiring interns across hardware, software,
+            ops and design — ship real things alongside us this season.
           </p>
         </div>
 
