@@ -1,16 +1,10 @@
 import { useCallback, useEffect, useState } from 'react'
+import { Routes, Route, useLocation, useNavigate } from 'react-router-dom'
 import Navbar from './components/Navbar'
-import Hero from './components/Hero'
-import BrandsMarquee from './components/BrandsMarquee'
-import About from './components/About'
-import Products from './components/Products'
-import Features from './components/Features'
-import Partners from './components/Partners'
-import Portfolio from './components/Portfolio'
-import VendingSim from './components/VendingSim'
-import Contact from './components/Contact'
 import Footer from './components/Footer'
 import MoguraGame from './components/MoguraGame'
+import HomePage from './pages/HomePage'
+import CareersPage from './pages/CareersPage'
 import { EggProvider, useEggs } from './context/EggContext'
 import useKonami from './hooks/useKonami'
 import './App.css'
@@ -18,6 +12,8 @@ import './App.css'
 function AppInner() {
   const [scrollY, setScrollY] = useState(0)
   const { setKonamiActive, triggerConfetti, showToast } = useEggs()
+  const navigate = useNavigate()
+  const location = useLocation()
 
   useEffect(() => {
     const handleScroll = () => setScrollY(window.scrollY)
@@ -34,26 +30,26 @@ function AppInner() {
       spreadY: 320,
     })
     showToast("Konami mode unlocked — vending's on us 🎉")
-    setTimeout(() => {
-      const el = document.getElementById('simulator')
-      if (el) el.scrollIntoView({ behavior: 'smooth' })
-    }, 250)
-  }, [setKonamiActive, triggerConfetti, showToast])
+    if (location.pathname !== '/') {
+      navigate('/#simulator')
+    } else {
+      setTimeout(() => {
+        const el = document.getElementById('simulator')
+        if (el) el.scrollIntoView({ behavior: 'smooth' })
+      }, 250)
+    }
+  }, [setKonamiActive, triggerConfetti, showToast, navigate, location.pathname])
 
   useKonami(onKonami)
 
   return (
     <div className="App">
       <Navbar scrollY={scrollY} />
-      <Hero />
-      <BrandsMarquee />
-      <About />
-      <Products />
-      <Features />
-      <Partners />
-      <Portfolio />
-      <VendingSim />
-      <Contact />
+      <Routes>
+        <Route path="/" element={<HomePage />} />
+        <Route path="/careers" element={<CareersPage />} />
+        <Route path="*" element={<HomePage />} />
+      </Routes>
       <Footer />
       <MoguraGame />
     </div>

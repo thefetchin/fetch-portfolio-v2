@@ -1,12 +1,27 @@
 import { FiArrowUp, FiInstagram, FiLinkedin, FiMail, FiPhone } from 'react-icons/fi'
+import { useLocation, useNavigate } from 'react-router-dom'
 import './Footer.css'
 
 const Footer = () => {
+  const navigate = useNavigate()
+  const location = useLocation()
+
   const scrollToTop = () => window.scrollTo({ top: 0, behavior: 'smooth' })
 
-  const scrollTo = (id) => {
+  // Section links go to /#id, navigating home first if needed.
+  const goToSection = (id) => (e) => {
+    e.preventDefault()
+    if (location.pathname !== '/') {
+      navigate(`/#${id}`)
+      return
+    }
     const el = document.getElementById(id)
     if (el) el.scrollIntoView({ behavior: 'smooth' })
+  }
+
+  const goToPath = (path) => (e) => {
+    e.preventDefault()
+    navigate(path)
   }
 
   return (
@@ -30,21 +45,22 @@ const Footer = () => {
           <div className="footer-links">
             <div className="footer-column">
               <h4>Products</h4>
-              <a href="#products" onClick={(e) => { e.preventDefault(); scrollTo('products') }}>Fetch Pods</a>
-              <a href="#products" onClick={(e) => { e.preventDefault(); scrollTo('products') }}>Fetch Grid <span className="footer-tag">soon</span></a>
-              <a href="#simulator" onClick={(e) => { e.preventDefault(); scrollTo('simulator') }}>Try a Pod</a>
+              <a href="/#products"  onClick={goToSection('products')}>Fetch Pods</a>
+              <a href="/#products"  onClick={goToSection('products')}>Fetch Grid <span className="footer-tag">soon</span></a>
+              <a href="/#simulator" onClick={goToSection('simulator')}>Try a Pod</a>
             </div>
             <div className="footer-column">
               <h4>Company</h4>
-              <a href="#about" onClick={(e) => { e.preventDefault(); scrollTo('about') }}>About</a>
-              <a href="#partners" onClick={(e) => { e.preventDefault(); scrollTo('partners') }}>Partners</a>
-              <a href="#portfolio" onClick={(e) => { e.preventDefault(); scrollTo('portfolio') }}>Portfolio</a>
+              <a href="/#about"     onClick={goToSection('about')}>About</a>
+              <a href="/#partners"  onClick={goToSection('partners')}>Partners</a>
+              <a href="/#portfolio" onClick={goToSection('portfolio')}>Portfolio</a>
+              <a href="/careers"    onClick={goToPath('/careers')}>Careers</a>
             </div>
             <div className="footer-column">
               <h4>Contact</h4>
               <a href="mailto:thefetch.in@gmail.com">thefetch.in@gmail.com</a>
               <a href="tel:+919019526185">+91 90195 26185</a>
-              <a href="#contact" onClick={(e) => { e.preventDefault(); scrollTo('contact') }}>Get in touch</a>
+              <a href="/#contact" onClick={goToSection('contact')}>Get in touch</a>
             </div>
           </div>
         </div>
