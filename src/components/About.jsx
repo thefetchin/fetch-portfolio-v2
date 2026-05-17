@@ -33,34 +33,37 @@ const About = () => {
         <div className="about-content">
           <span className="eyebrow">About Fetch</span>
           <h2 className="section-title">
-            We build the infrastructure behind <span className="accent-text">effortless retail.</span>
+            Smart retail technology, <span className="accent-text">end to end.</span>
           </h2>
           <p className="section-description">
-            Fetch designs, deploys and operates a fleet of connected vending machines for
-            modern spaces. By bringing together IoT-grade hardware, cashless payments and
-            real-time inventory, we turn passive corners into always-on retail surfaces —
-            for spaces, brands, and advertisers alike.
+            Fetch is a smart retail technology company. We design and operate
+            <strong> Fetch Pods</strong> — connected vending machines deployed
+            across offices, campuses, healthcare and transit hubs — and we are
+            building <strong>Fetch Grid</strong>, the software platform that
+            links the retailers running those Pods with the distributors stocking
+            them. Hardware on the ground, software in the cloud, one network
+            end to end.
           </p>
           <div className="about-highlights">
             <div className="highlight-item">
               <div className="highlight-number">01</div>
               <div className="highlight-content">
-                <h3>Smart Technology</h3>
-                <p>IoT-connected vending machines with real-time monitoring and analytics</p>
+                <h3>Hardware that thinks</h3>
+                <p>Fetch Pods are IoT-grade vending machines with real-time inventory, cashless checkout and remote management built in.</p>
               </div>
             </div>
             <div className="highlight-item">
               <div className="highlight-number">02</div>
               <div className="highlight-content">
-                <h3>Seamless Integration</h3>
-                <p>Design solutions that blend perfectly with your existing space</p>
+                <h3>Software that connects</h3>
+                <p>Fetch Grid (in development) brings retailers, distributors and brand teams onto one platform for restocking, analytics and settlement.</p>
               </div>
             </div>
             <div className="highlight-item">
               <div className="highlight-number">03</div>
               <div className="highlight-content">
-                <h3>Complete Support</h3>
-                <p>From installation to maintenance, we handle everything</p>
+                <h3>One network, end to end</h3>
+                <p>From the Pod on the wall to the distributor's warehouse, every SKU, sale and shipment lives on the same network.</p>
               </div>
             </div>
           </div>

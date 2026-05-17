@@ -16,8 +16,9 @@ const Footer = () => {
           <div className="footer-brand">
             <img src="/fetch-logo.svg" alt="Fetch" className="footer-logo-image" />
             <p>
-              Smart vending infrastructure for offices, campuses, healthcare
-              and transit hubs across India.
+              Smart retail technology — Fetch Pods on the ground and Fetch Grid
+              in the cloud, connecting retailers, distributors and brands across
+              India.
             </p>
             <div className="footer-social">
               <a href="https://instagram.com/" aria-label="Instagram" target="_blank" rel="noreferrer"><FiInstagram /></a>
@@ -28,16 +29,16 @@ const Footer = () => {
           </div>
           <div className="footer-links">
             <div className="footer-column">
-              <h4>Company</h4>
-              <a href="#about" onClick={(e) => { e.preventDefault(); scrollTo('about') }}>About</a>
-              <a href="#features" onClick={(e) => { e.preventDefault(); scrollTo('features') }}>Why Fetch</a>
-              <a href="#portfolio" onClick={(e) => { e.preventDefault(); scrollTo('portfolio') }}>Portfolio</a>
+              <h4>Products</h4>
+              <a href="#products" onClick={(e) => { e.preventDefault(); scrollTo('products') }}>Fetch Pods</a>
+              <a href="#products" onClick={(e) => { e.preventDefault(); scrollTo('products') }}>Fetch Grid <span className="footer-tag">soon</span></a>
+              <a href="#simulator" onClick={(e) => { e.preventDefault(); scrollTo('simulator') }}>Try a Pod</a>
             </div>
             <div className="footer-column">
-              <h4>Partner</h4>
-              <a href="#partners" onClick={(e) => { e.preventDefault(); scrollTo('partners') }}>Spaces</a>
-              <a href="#partners" onClick={(e) => { e.preventDefault(); scrollTo('partners') }}>Brands</a>
-              <a href="#partners" onClick={(e) => { e.preventDefault(); scrollTo('partners') }}>Advertisers</a>
+              <h4>Company</h4>
+              <a href="#about" onClick={(e) => { e.preventDefault(); scrollTo('about') }}>About</a>
+              <a href="#partners" onClick={(e) => { e.preventDefault(); scrollTo('partners') }}>Partners</a>
+              <a href="#portfolio" onClick={(e) => { e.preventDefault(); scrollTo('portfolio') }}>Portfolio</a>
             </div>
             <div className="footer-column">
               <h4>Contact</h4>

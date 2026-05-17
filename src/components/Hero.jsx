@@ -101,30 +101,31 @@ const Hero = () => {
       <div className="hero-container">
         <div className="hero-content">
           <div className="hero-badge">
-            <span>Smart Retail · IoT-Powered</span>
+            <span>Smart Retail Platform · Pods · Grid</span>
           </div>
           <h1 className="hero-title">
-            Intelligent vending
+            Smart retail,
             <br />
-            for <span className="accent-text">modern spaces.</span>
+            <span className="accent-text">end to end.</span>
           </h1>
           <p className="hero-subtitle">
-            Fetch designs, deploys and operates a network of connected vending machines —
-            stocking the brands your visitors already love, with the analytics your business needs.
+            Fetch Pods bring connected vending into your space. Fetch Grid (in
+            development) links the retailers running them with the distributors
+            stocking them — one platform across the network.
           </p>
           <div className="hero-buttons">
             <button
               className="btn btn-primary"
               onClick={() => scrollToSection('contact')}
             >
-              Host a machine
+              Host a Pod
               <span className="btn-arrow">→</span>
             </button>
             <button
               className="btn btn-secondary"
-              onClick={() => scrollToSection('features')}
+              onClick={() => scrollToSection('products')}
             >
-              See what's inside
+              Explore the platform
             </button>
           </div>
 

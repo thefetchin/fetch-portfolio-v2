@@ -307,12 +307,12 @@ const VendingSim = () => {
     <section id="simulator" ref={sectionRef} className="vsim">
       <div className="vsim-container">
         <div className="vsim-header">
-          <span className="eyebrow">Try it yourself</span>
+          <span className="eyebrow">Try a Fetch Pod</span>
           <h2 className="section-title">
             Tap. Pay with UPI. <span className="accent-text">Collect.</span>
           </h2>
           <p className="section-description">
-            A miniature of the real Fetch experience — pick what you want, scan to pay,
+            A miniature of the real Pod experience — pick what you want, scan to pay,
             then push the door to collect your snacks.
           </p>
         </div>

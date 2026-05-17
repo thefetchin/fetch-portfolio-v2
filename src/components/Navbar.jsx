@@ -25,10 +25,10 @@ const Navbar = ({ scrollY }) => {
         </div>
         <div className={`nav-menu ${isMenuOpen ? 'active' : ''}`}>
           <a href="#about" onClick={(e) => { e.preventDefault(); scrollToSection('about') }}>About</a>
-          <a href="#features" onClick={(e) => { e.preventDefault(); scrollToSection('features') }}>Why Fetch</a>
+          <a href="#products" onClick={(e) => { e.preventDefault(); scrollToSection('products') }}>Products</a>
           <a href="#partners" onClick={(e) => { e.preventDefault(); scrollToSection('partners') }}>Partners</a>
           <a href="#portfolio" onClick={(e) => { e.preventDefault(); scrollToSection('portfolio') }}>Portfolio</a>
-          <a href="#simulator" onClick={(e) => { e.preventDefault(); scrollToSection('simulator') }}>Try it</a>
+          <a href="#simulator" onClick={(e) => { e.preventDefault(); scrollToSection('simulator') }}>Try a Pod</a>
           <button
             type="button"
             className="nav-cta"
