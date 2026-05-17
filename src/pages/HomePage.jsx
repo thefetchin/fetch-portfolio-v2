@@ -1,7 +1,6 @@
 import { useEffect } from 'react'
 import { useLocation } from 'react-router-dom'
 import Hero from '../components/Hero'
-import BrandsMarquee from '../components/BrandsMarquee'
 import About from '../components/About'
 import Products from '../components/Products'
 import Features from '../components/Features'
@@ -30,7 +29,6 @@ const HomePage = () => {
   return (
     <>
       <Hero />
-      <BrandsMarquee />
       <About />
       <Products />
       <Features />
