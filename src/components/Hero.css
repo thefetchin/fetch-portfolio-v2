@@ -362,16 +362,10 @@
     margin-bottom: 2rem;
   }
 
+  /* Mobile: drop the stat strip entirely. It's decorative on phones
+     and contributes ~150px of scroll for very little signal. */
   .hero-stats {
-    flex-direction: column;
-    gap: 1.25rem;
-    margin-top: 2.5rem;
-    padding-top: 1.75rem;
-  }
-
-  .stat-divider {
-    width: 60px;
-    height: 1px;
+    display: none;
   }
 
   .hero-buttons {
