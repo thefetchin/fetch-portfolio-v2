@@ -104,10 +104,13 @@ const Hero = () => {
             <span>Smart Retail Platform · Pods · Grid</span>
           </div>
           <h1 className="hero-title">
-            Smart retail,
+            <span className="visually-hidden">Fetch — </span>Smart retail,
             <br />
             <span className="accent-text">end to end.</span>
           </h1>
+          <p className="hero-products">
+            <strong>Fetch Pods</strong> · <strong>Fetch Grid</strong>
+          </p>
           <p className="hero-subtitle">
             Fetch Pods bring connected vending into your space. Fetch Grid
             (in development) is the retail operations platform that connects

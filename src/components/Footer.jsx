@@ -65,7 +65,11 @@ const Footer = () => {
           </div>
         </div>
         <div className="footer-bottom">
-          <p>&copy; {new Date().getFullYear()} Fetch. All rights reserved.</p>
+          <p>
+            &copy; {new Date().getFullYear()} <strong>AIUM Tech Private Limited</strong>
+            <span className="footer-sep" aria-hidden="true"> · </span>
+            <span>Operating as Fetch · Mangalore, India.</span>
+          </p>
           <button className="scroll-to-top" onClick={scrollToTop} aria-label="Scroll to top">
             <FiArrowUp />
           </button>
