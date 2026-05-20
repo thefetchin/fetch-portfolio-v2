@@ -64,6 +64,15 @@ const Footer = () => {
             </div>
           </div>
         </div>
+        <nav className="footer-legal" aria-label="Legal">
+          <a href="/privacy" onClick={goToPath('/privacy')}>Privacy</a>
+          <span aria-hidden="true">·</span>
+          <a href="/terms" onClick={goToPath('/terms')}>Terms</a>
+          <span aria-hidden="true">·</span>
+          <a href="/cookies" onClick={goToPath('/cookies')}>Cookies</a>
+          <span aria-hidden="true">·</span>
+          <a href="/refunds" onClick={goToPath('/refunds')}>Refunds &amp; Grievance</a>
+        </nav>
         <div className="footer-bottom">
           <p>
             &copy; {new Date().getFullYear()} <strong>AIUM Tech Private Limited</strong>

@@ -5,6 +5,10 @@ import Footer from './components/Footer'
 import MoguraGame from './components/MoguraGame'
 import HomePage from './pages/HomePage'
 import CareersPage from './pages/CareersPage'
+import PrivacyPage from './pages/PrivacyPage'
+import TermsPage from './pages/TermsPage'
+import CookiesPage from './pages/CookiesPage'
+import RefundsPage from './pages/RefundsPage'
 import { EggProvider, useEggs } from './context/EggContext'
 import useKonami from './hooks/useKonami'
 import './App.css'
@@ -48,6 +52,10 @@ function AppInner() {
       <Routes>
         <Route path="/" element={<HomePage />} />
         <Route path="/careers" element={<CareersPage />} />
+        <Route path="/privacy" element={<PrivacyPage />} />
+        <Route path="/terms" element={<TermsPage />} />
+        <Route path="/cookies" element={<CookiesPage />} />
+        <Route path="/refunds" element={<RefundsPage />} />
         <Route path="*" element={<HomePage />} />
       </Routes>
       <Footer />
