@@ -212,6 +212,26 @@
   color: transparent;
 }
 
+.hero-products {
+  display: inline-flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  gap: 0.6rem;
+  margin: 0 auto 1.5rem;
+  font-size: 0.85rem;
+  letter-spacing: 0.08em;
+  color: var(--ink-500);
+  font-weight: 500;
+}
+
+.hero-products strong {
+  color: var(--ink-900);
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  font-size: 1rem;
+}
+
 .hero-subtitle {
   font-size: clamp(1.1rem, 2vw, 1.35rem);
   color: var(--text-secondary);

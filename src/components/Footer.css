@@ -124,6 +124,18 @@
 .footer-bottom p {
   color: rgba(255, 255, 255, 0.55);
   font-size: 0.88rem;
+  line-height: 1.55;
+}
+
+.footer-bottom p strong {
+  color: rgba(255, 255, 255, 0.85);
+  font-weight: 700;
+}
+
+.footer-sep {
+  display: inline-block;
+  padding: 0 0.15rem;
+  opacity: 0.55;
 }
 
 .scroll-to-top {
