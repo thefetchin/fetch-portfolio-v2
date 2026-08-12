@@ -7,6 +7,7 @@ import {
   OCCURRED_WHEN,
   SUBMISSION_STATUSES,
 } from '../../shared/constants.js'
+import Pods from './Pods'
 import './Admin.css'
 
 const labelMap = (options) =>
@@ -176,6 +177,7 @@ export default function Admin() {
   const [kind, setKind] = useState('')
   const [status, setStatus] = useState('')
   const [authed, setAuthed] = useState(null)   // null = unknown, false = login, string = email
+  const [view, setView] = useState('submissions')
 
   const load = useCallback(async () => {
     setError(null)
@@ -266,7 +268,28 @@ export default function Admin() {
 
       {error && <div className="admin-error">{error}</div>}
 
-      {stats && (
+      <div className="admin-tabs" role="tablist">
+        <button
+          type="button" role="tab"
+          aria-selected={view === 'submissions'}
+          className={`admin-tab ${view === 'submissions' ? 'is-active' : ''}`}
+          onClick={() => setView('submissions')}
+        >
+          Submissions
+        </button>
+        <button
+          type="button" role="tab"
+          aria-selected={view === 'pods'}
+          className={`admin-tab ${view === 'pods' ? 'is-active' : ''}`}
+          onClick={() => setView('pods')}
+        >
+          Pods &amp; QR codes
+        </button>
+      </div>
+
+      {view === 'pods' && <Pods />}
+
+      {view === 'submissions' && stats && (
         <div className="stats">
           <div className="stat"><span>{stats.total ?? 0}</span><label>Total</label></div>
           <div className="stat"><span>{stats.unread ?? 0}</span><label>New</label></div>
@@ -277,6 +300,7 @@ export default function Admin() {
         </div>
       )}
 
+      {view === 'submissions' && <>
       <div className="filters">
         <select value={kind} onChange={(e) => setKind(e.target.value)}>
           <option value="">All types</option>
@@ -319,6 +343,7 @@ export default function Admin() {
         Tap any row for full details. Data stays in Cloudflare D1 — nothing is
         emailed anywhere.
       </p>
+      </>}
     </main>
   )
 }

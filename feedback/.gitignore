@@ -6,3 +6,5 @@ dist
 qr-codes
 *.log
 .qr-secret.local
+.admin-credentials.local
+.admin-users.sql

@@ -281,6 +281,106 @@ async function handleAdminSubmissions(request, env) {
   return json({ submissions: rows.results || [], stats })
 }
 
+/* ------------------------------------------------- admin: pods + QR ----- */
+
+const POD_ID_RE = /^[A-Z0-9][A-Z0-9-]{2,39}$/
+
+/** The public URL encoded into a Pod's QR code. */
+async function podUrl(env, podId) {
+  const base = env.FORM_HOSTNAME ? `https://${env.FORM_HOSTNAME}` : ''
+  const path = `/p/${encodeURIComponent(podId)}`
+  if (!env.QR_SECRET) return `${base}${path}` // unsigned in local dev
+  return `${base}${path}?t=${await podSignature(env.QR_SECRET, podId)}`
+}
+
+async function handleAdminPodsList(request, env) {
+  const rows = await env.DB.prepare(
+    `SELECT p.pod_id, p.label, p.location, p.city, p.active, p.created_at,
+            (SELECT COUNT(*) FROM submissions s WHERE s.pod_id = p.pod_id) AS submission_count
+       FROM pods p
+      ORDER BY p.created_at DESC`
+  ).all()
+
+  const pods = await Promise.all(
+    (rows.results || []).map(async (p) => ({
+      podId: p.pod_id,
+      label: p.label,
+      location: p.location,
+      city: p.city,
+      active: p.active === 1,
+      createdAt: p.created_at,
+      submissionCount: p.submission_count,
+      url: await podUrl(env, p.pod_id),
+    }))
+  )
+
+  return json({ pods })
+}
+
+async function handleAdminPodCreate(request, env) {
+  let body
+  try {
+    body = await request.json()
+  } catch {
+    return json({ error: 'bad_json', message: 'Malformed request.' }, 400)
+  }
+
+  // Pod IDs are uppercased so QR codes and DB rows can never disagree over
+  // casing — the signature is computed over the exact string.
+  const podId = typeof body.podId === 'string'
+    ? body.podId.trim().toUpperCase().replace(/\s+/g, '-')
+    : ''
+
+  if (!POD_ID_RE.test(podId)) {
+    return json({
+      error: 'bad_pod_id',
+      message: 'Use 3–40 characters: letters, numbers and dashes (e.g. POD-MNG-003).',
+    }, 422)
+  }
+
+  const clean = (v, max) => {
+    if (typeof v !== 'string') return null
+    const s = v.replace(/\s+/g, ' ').trim().slice(0, max)
+    return s.length ? s : null
+  }
+
+  const location = clean(body.location, 120)
+  const city = clean(body.city, 60)
+  const label = clean(body.label, 60) || `Fetch Pod ${podId.split('-').pop()}`
+
+  if (!location) {
+    return json({ error: 'missing_location', message: 'Location is required.' }, 422)
+  }
+
+  const existing = await env.DB.prepare('SELECT pod_id FROM pods WHERE pod_id = ?1')
+    .bind(podId).first()
+
+  await env.DB.prepare(
+    `INSERT INTO pods (pod_id, label, location, city) VALUES (?1, ?2, ?3, ?4)
+     ON CONFLICT(pod_id) DO UPDATE SET
+       label = excluded.label, location = excluded.location, city = excluded.city`
+  ).bind(podId, label, location, city).run()
+
+  return json({
+    ok: true,
+    updated: Boolean(existing),
+    pod: { podId, label, location, city, active: true, url: await podUrl(env, podId) },
+  })
+}
+
+async function handleAdminPodToggle(request, env, podId) {
+  let body
+  try {
+    body = await request.json()
+  } catch {
+    return json({ error: 'bad_json' }, 400)
+  }
+  const active = body.active ? 1 : 0
+  await env.DB.prepare('UPDATE pods SET active = ?1 WHERE pod_id = ?2')
+    .bind(active, podId).run()
+  return json({ ok: true, active: active === 1 })
+}
+
 async function handleAdminUpdate(request, env, id) {
   let body
   try {
@@ -341,6 +441,16 @@ export default {
 
         if (pathname === '/api/admin/submissions' && request.method === 'GET') {
           return await handleAdminSubmissions(request, env)
+        }
+        if (pathname === '/api/admin/pods' && request.method === 'GET') {
+          return await handleAdminPodsList(request, env)
+        }
+        if (pathname === '/api/admin/pods' && request.method === 'POST') {
+          return await handleAdminPodCreate(request, env)
+        }
+        const podMatch = pathname.match(/^\/api\/admin\/pods\/([A-Za-z0-9-]+)$/)
+        if (podMatch && request.method === 'PATCH') {
+          return await handleAdminPodToggle(request, env, podMatch[1].toUpperCase())
         }
         const updateMatch = pathname.match(/^\/api\/admin\/submissions\/([\w-]+)$/)
         if (updateMatch && request.method === 'PATCH') {

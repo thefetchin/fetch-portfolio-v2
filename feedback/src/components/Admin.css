@@ -156,6 +156,37 @@
   margin-bottom: 1.25rem;
 }
 
+/* ---------------------------------------------------------------- tabs -- */
+
+.admin-tabs {
+  display: inline-flex;
+  gap: 0.25rem;
+  padding: 0.3rem;
+  margin-bottom: 1.25rem;
+  background: var(--ink-100);
+  border-radius: var(--radius-md);
+}
+
+.admin-tab {
+  appearance: none;
+  border: none;
+  background: transparent;
+  color: var(--ink-500);
+  padding: 0.55rem 1.1rem;
+  border-radius: 9px;
+  font-size: 0.88rem;
+  font-weight: 600;
+  cursor: pointer;
+  min-height: 40px;
+  transition: background 0.2s ease, color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.admin-tab.is-active {
+  background: var(--ink-0);
+  color: var(--ink-900);
+  box-shadow: var(--shadow-sm);
+}
+
 /* --------------------------------------------------------------- stats -- */
 
 .stats {
