@@ -86,10 +86,7 @@ CREATE INDEX IF NOT EXISTS idx_submissions_status   ON submissions (status, crea
 -- supports the per-IP and per-Pod rate-limit lookups
 CREATE INDEX IF NOT EXISTS idx_submissions_ip_time  ON submissions (ip_hash, created_at DESC);
 
--- ------------------------------------------------------------- seed -------
--- Replace these with your real machines. The pod_id here is what gets
--- embedded (and signed) in each QR code.
-
-INSERT OR IGNORE INTO pods (pod_id, label, location, city) VALUES
-  ('POD-MNG-001', 'Fetch Pod 001', 'Lucia Mansion, Kulshekara', 'Mangalore'),
-  ('POD-MNG-002', 'Fetch Pod 002', 'Demo location',             'Mangalore');
+-- No seed data. Register real machines from the dashboard
+-- (admin.thefetch.in → Pods & QR codes), which creates the row and its
+-- signed QR in one step. Seeding demo Pods here would silently recreate
+-- them every time this file is re-applied.
