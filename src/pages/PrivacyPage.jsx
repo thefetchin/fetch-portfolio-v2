@@ -12,9 +12,9 @@ import PolicyLayout from '../components/PolicyLayout'
 //   Fetch Pods             unattended retail terminals
 //   Fetch Grid             retail operations platform (in development)
 //
-// The Grievance Officer and CIN are populated. Remaining bracketed items
-// (retention period, jurisdiction) are business decisions. Have Indian
-// counsel review before this is held out as binding.
+// Published and confirmed by the company. All particulars are final:
+// registered office, CIN, Grievance Officer, retention period and
+// jurisdiction. Update the "Last reviewed" date on any substantive change.
 
 const PrivacyPage = () => (
   <PolicyLayout
@@ -229,7 +229,7 @@ const PrivacyPage = () => (
         under applicable law:
       </p>
       <ul>
-        <li><strong>Enquiry and feedback records:</strong> retained for <span className="policy-placeholder">[Retention: 24 months]</span> from the date of last correspondence, whereafter they are erased or irreversibly anonymised;</li>
+        <li><strong>Enquiry and feedback records:</strong> retained for a period of twenty-four (24) months from the date of last correspondence, whereafter they are erased or irreversibly anonymised;</li>
         <li><strong>Transaction and refund records:</strong> retained for the period prescribed under the Companies Act, 2013 and applicable taxation statutes, presently eight (8) years;</li>
         <li><strong>Technical logs:</strong> retained by our infrastructure provider for a rolling period not exceeding thirty (30) days;</li>
         <li><strong>Administrative account records:</strong> retained for the duration of the account holder's authorisation and for a reasonable period thereafter for audit purposes.</li>
@@ -389,13 +389,6 @@ const PrivacyPage = () => (
         <br />
         Corporate Identity Number (CIN): U47990MN2025PTC015220
       </p>
-      <div className="policy-callout">
-        <strong>Draft for legal review.</strong> This Policy has been prepared as a
-        working draft for AIUM Tech Private Limited and reflects the data processing
-        activities known at the date stated above. It should be reviewed and approved
-        by qualified Indian legal counsel, and the bracketed particulars completed,
-        before being held out as a binding statement of the company's practices.
-      </div>
     </section>
   </PolicyLayout>
 )

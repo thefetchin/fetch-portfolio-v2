@@ -1,8 +1,8 @@
 import PolicyLayout from '../components/PolicyLayout'
 
-// NOTE: Plain-English boilerplate draft. Have Indian legal counsel review
-// before publishing — especially the limitation of liability, indemnity and
-// jurisdiction clauses. Bracketed placeholders highlight what needs input.
+// Published and confirmed by the company. Liability cap (12 months /
+// Rs 5,000 floor), indemnity and jurisdiction are final. Update the
+// "Last reviewed" date on any substantive change.
 
 const TermsPage = () => (
   <PolicyLayout
@@ -166,11 +166,9 @@ const TermsPage = () => (
       <p>
         To the maximum extent permitted by law, our total liability arising out
         of or in connection with these Terms, the website or a Fetch Pod
-        purchase will not exceed the amount you paid us in the{' '}
-        <span className="policy-placeholder">[Liability cap: 12 months]</span>{' '}
-        preceding the event giving rise to the claim, or{' '}
-        <span className="policy-placeholder">[Floor amount: ₹5,000]</span>,
-        whichever is higher.
+        purchase will not exceed the total amount you paid us in the twelve (12)
+        months preceding the event giving rise to the claim, or ₹5,000 (Rupees five
+        thousand only), whichever is higher.
       </p>
       <p>
         We are not liable for indirect, incidental, special, consequential or
@@ -214,11 +212,6 @@ const TermsPage = () => (
         <a href="mailto:thefetch.in@gmail.com">thefetch.in@gmail.com</a>{' '}
         or call <a href="tel:+919019526185">+91 90195 26185</a>.
       </p>
-      <div className="policy-callout">
-        <strong>Draft for legal review.</strong> These Terms are a working draft
-        prepared for AIUM Tech Private Limited. Please have Indian legal
-        counsel review and approve before relying on this document.
-      </div>
     </section>
   </PolicyLayout>
 )
