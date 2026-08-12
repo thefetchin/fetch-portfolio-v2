@@ -59,9 +59,8 @@ const RefundsPage = () => (
         </li>
         <li>
           Eligible refunds are credited back to the original payment method
-          within{' '}
-          <span className="policy-placeholder">[Refund window: 7 business days]</span>{' '}
-          of approval. Bank or UPI provider delays may add 1–2 days.
+          within seven (7) business days of approval. Bank or UPI provider
+          delays may add 1–2 days.
         </li>
         <li>
           If we need more information from you, the clock pauses until you
@@ -152,9 +151,9 @@ const RefundsPage = () => (
     <section>
       <div className="policy-callout">
         <strong>Draft for legal review.</strong> This Refunds &amp; Grievance
-        policy is a working draft prepared for AIUM Tech Private Limited. The
-        refund window and the jurisdiction clause remain to be confirmed by
-        Indian legal counsel before this is treated as binding.
+        policy has been prepared for AIUM Tech Private Limited and should be
+        reviewed and approved by qualified Indian legal counsel before being
+        treated as binding.
       </div>
     </section>
   </PolicyLayout>

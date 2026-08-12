@@ -229,7 +229,7 @@ const PrivacyPage = () => (
         under applicable law:
       </p>
       <ul>
-        <li><strong>Enquiry and feedback records:</strong> retained for <span className="policy-placeholder">[Retention: 24 months]</span> from the date of last correspondence, whereafter they are erased or irreversibly anonymised;</li>
+        <li><strong>Enquiry and feedback records:</strong> retained for a period of twenty-four (24) months from the date of last correspondence, whereafter they are erased or irreversibly anonymised;</li>
         <li><strong>Transaction and refund records:</strong> retained for the period prescribed under the Companies Act, 2013 and applicable taxation statutes, presently eight (8) years;</li>
         <li><strong>Technical logs:</strong> retained by our infrastructure provider for a rolling period not exceeding thirty (30) days;</li>
         <li><strong>Administrative account records:</strong> retained for the duration of the account holder's authorisation and for a reasonable period thereafter for audit purposes.</li>
@@ -393,8 +393,8 @@ const PrivacyPage = () => (
         <strong>Draft for legal review.</strong> This Policy has been prepared as a
         working draft for AIUM Tech Private Limited and reflects the data processing
         activities known at the date stated above. It should be reviewed and approved
-        by qualified Indian legal counsel, and the bracketed particulars completed,
-        before being held out as a binding statement of the company's practices.
+        by qualified Indian legal counsel before being held out as a binding
+        statement of the company's practices.
       </div>
     </section>
   </PolicyLayout>

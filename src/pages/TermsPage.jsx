@@ -166,11 +166,9 @@ const TermsPage = () => (
       <p>
         To the maximum extent permitted by law, our total liability arising out
         of or in connection with these Terms, the website or a Fetch Pod
-        purchase will not exceed the amount you paid us in the{' '}
-        <span className="policy-placeholder">[Liability cap: 12 months]</span>{' '}
-        preceding the event giving rise to the claim, or{' '}
-        <span className="policy-placeholder">[Floor amount: ₹5,000]</span>,
-        whichever is higher.
+        purchase will not exceed the total amount you paid us in the twelve (12)
+        months preceding the event giving rise to the claim, or ₹5,000 (Rupees five
+        thousand only), whichever is higher.
       </p>
       <p>
         We are not liable for indirect, incidental, special, consequential or
