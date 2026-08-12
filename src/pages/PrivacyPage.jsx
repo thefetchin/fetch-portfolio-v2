@@ -12,8 +12,9 @@ import PolicyLayout from '../components/PolicyLayout'
 //   Fetch Pods             unattended retail terminals
 //   Fetch Grid             retail operations platform (in development)
 //
-// Bracketed placeholders mark facts only the company can supply. Have
-// Indian counsel review before this is held out as binding.
+// The Grievance Officer and CIN are populated. Remaining bracketed items
+// (retention period, jurisdiction) are business decisions. Have Indian
+// counsel review before this is held out as binding.
 
 const PrivacyPage = () => (
   <PolicyLayout
@@ -317,9 +318,9 @@ const PrivacyPage = () => (
         Code) Rules, 2021, the particulars of the Grievance Officer are as follows:
       </p>
       <p>
-        <strong>Name:</strong> <span className="policy-placeholder">[Grievance Officer Name]</span>
+        <strong>Name:</strong> Mr. Ronan Mark D'souza
         <br />
-        <strong>Designation:</strong> Grievance Officer
+        <strong>Designation:</strong> Director and Grievance Officer
         <br />
         <strong>Entity:</strong> AIUM Tech Private Limited
         <br />
@@ -384,7 +385,7 @@ const PrivacyPage = () => (
         <a href="mailto:thefetch.in@gmail.com">thefetch.in@gmail.com</a> ·{' '}
         <a href="tel:+919019526185">+91 90195 26185</a>
         <br />
-        Corporate Identity Number: <span className="policy-placeholder">[CIN]</span>
+        Corporate Identity Number (CIN): U47990MN2025PTC015220
       </p>
       <div className="policy-callout">
         <strong>Draft for legal review.</strong> This Policy has been prepared as a
