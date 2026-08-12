@@ -1,0 +1,46 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "fetch-feedback",
+  "main": "worker/index.js",
+  "compatibility_date": "2026-05-17",
+
+  "assets": {
+    "directory": "./dist",
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application"
+  },
+
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "fetch-feedback",
+      // Replace with the id printed by:
+      //   npx wrangler d1 create fetch-feedback
+      "database_id": "REPLACE_WITH_D1_DATABASE_ID"
+    }
+  ],
+
+  "routes": [
+    {
+      "pattern": "feedback.thefetch.in",
+      "custom_domain": true
+    }
+  ],
+
+  "vars": {
+    // Public Turnstile site key. Safe to commit — the *secret* is set with
+    //   npx wrangler secret put TURNSTILE_SECRET
+    "TURNSTILE_SITE_KEY": "",
+
+    // Cloudflare Access settings that guard /api/admin/*.
+    // Leave blank for local dev; fill in before going live.
+    //   ACCESS_TEAM_DOMAIN e.g. "aiumtech.cloudflareaccess.com"
+    //   ACCESS_AUD         the Application Audience tag of the Access app
+    "ACCESS_TEAM_DOMAIN": "",
+    "ACCESS_AUD": ""
+  }
+
+  // Secrets (never in this file — use `wrangler secret put <NAME>`):
+  //   QR_SECRET         HMAC key that signs pod IDs in QR codes
+  //   TURNSTILE_SECRET  Turnstile server-side secret
+}
