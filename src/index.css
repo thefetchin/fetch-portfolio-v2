@@ -1,4 +1,5 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
+/* Inter is loaded via <link> in index.html — a CSS @import cannot start
+   until this stylesheet has been fetched and parsed, delaying first paint. */
 
 * {
   margin: 0;

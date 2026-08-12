@@ -17,8 +17,8 @@ const FEATURES = [
   },
   {
     icon: FiCreditCard,
-    title: 'Cashless & UPI Ready',
-    body: 'UPI, cards, wallets and tap-to-pay out of the box. Frictionless checkout for every customer.',
+    title: 'UPI Checkout',
+    body: 'Scan-and-pay over UPI, built in. Cards and wallets can be enabled per Pod as we roll them out.',
   },
   {
     icon: FiActivity,
@@ -75,7 +75,12 @@ const Features = () => {
           </p>
         </div>
 
-        <div className="features-grid">
+        <div
+          className="features-grid"
+          tabIndex={0}
+          role="group"
+          aria-label="Fetch Pod capabilities — scroll horizontally on smaller screens"
+        >
           {FEATURES.map(({ icon: Icon, title, body }) => (
             <article className="feature-card" key={title}>
               <div className="feature-icon"><Icon aria-hidden="true" /></div>

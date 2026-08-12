@@ -1,0 +1,344 @@
+.locations {
+  padding: 7rem 1.5rem 6rem;
+  background:
+    radial-gradient(70% 45% at 50% 0%, rgba(14, 165, 233, 0.09), transparent 62%),
+    var(--ink-0);
+  min-height: 80vh;
+}
+
+.locations-container {
+  max-width: 900px;
+  margin: 0 auto;
+}
+
+/* ---------------------------------------------------------------- head -- */
+
+.locations-head {
+  margin-bottom: 3rem;
+}
+
+.locations-back {
+  appearance: none;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  font-family: inherit;
+  /* block-level (not inline-flex) so the "Live now" pill sits on its own
+     line beneath, rather than crowding alongside it */
+  display: flex;
+  width: fit-content;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.4rem 0;
+  margin-bottom: 1.5rem;
+  font-size: 0.86rem;
+  font-weight: 600;
+  color: var(--ink-500);
+  transition: color 0.2s ease, gap 0.2s ease;
+}
+
+.locations-back:hover {
+  color: var(--ink-900);
+  gap: 0.6rem;
+}
+
+.locations-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: #15803d;
+  background: rgba(34, 197, 94, 0.1);
+  border: 1px solid rgba(34, 197, 94, 0.3);
+  padding: 0.3rem 0.7rem;
+  border-radius: 999px;
+  margin-bottom: 1.1rem;
+}
+
+.locations-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #22c55e;
+  animation: loc-pulse 2.4s ease-in-out infinite;
+}
+
+@keyframes loc-pulse {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.4; }
+}
+
+.locations-title {
+  font-size: clamp(2.1rem, 5vw, 3rem);
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  line-height: 1.1;
+  color: var(--ink-900);
+  margin-bottom: 1rem;
+}
+
+.locations-sub {
+  font-size: 1.05rem;
+  line-height: 1.7;
+  color: var(--ink-500);
+  max-width: 62ch;
+}
+
+/* ---------------------------------------------------------------- list -- */
+
+.locations-list {
+  list-style: none;
+  margin: 0 0 3rem;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.location {
+  display: flex;
+  gap: 1.5rem;
+  padding: 1.75rem;
+  background: var(--ink-0);
+  border: 1px solid var(--ink-100);
+  border-radius: 14px;
+  transition: border-color 0.25s ease, box-shadow 0.25s ease, transform 0.25s ease;
+}
+
+.location:hover {
+  border-color: var(--brand-200);
+  box-shadow: var(--shadow-md);
+  transform: translateY(-2px);
+}
+
+/* Logo tile: dark so the supplied white-on-black wordmark composites cleanly */
+.location-mark {
+  flex-shrink: 0;
+  width: 132px;
+  height: 88px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--ink-100);
+  color: var(--ink-500);
+  font-size: 1.9rem;
+  font-weight: 800;
+}
+
+.location-mark.has-logo {
+  background: var(--ink-900);
+  padding: 0 0.9rem;
+}
+
+.location-mark img {
+  width: 100%;
+  height: auto;
+  max-height: 40px;
+  object-fit: contain;
+  mix-blend-mode: screen;
+}
+
+.location-body {
+  min-width: 0;
+  flex: 1;
+}
+
+.location-top {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.2rem;
+}
+
+.location-name {
+  font-size: 1.2rem;
+  font-weight: 800;
+  letter-spacing: -0.015em;
+  color: var(--ink-900);
+}
+
+.location-live {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.18rem 0.5rem;
+  border-radius: 999px;
+  background: rgba(34, 197, 94, 0.12);
+  border: 1px solid rgba(34, 197, 94, 0.32);
+  color: #15803d;
+  font-size: 0.62rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.location-live-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: #22c55e;
+}
+
+.location-venue {
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--brand-700);
+  margin-bottom: 0.6rem;
+}
+
+.location-note {
+  font-size: 0.95rem;
+  line-height: 1.6;
+  color: var(--ink-500);
+  margin-bottom: 1.1rem;
+}
+
+.location-facts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 0.85rem;
+  margin: 0;
+  padding-top: 1rem;
+  border-top: 1px dashed var(--ink-100);
+}
+
+.location-facts dt {
+  font-size: 0.64rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-300);
+  margin-bottom: 0.2rem;
+}
+
+.location-facts dd {
+  margin: 0;
+  font-size: 0.87rem;
+  color: var(--ink-700);
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.location-facts svg {
+  width: 13px;
+  height: 13px;
+  color: var(--brand-600);
+  flex-shrink: 0;
+}
+
+/* ----------------------------------------------------------------- cta -- */
+
+.locations-cta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 2rem;
+  padding: 2rem 2.25rem;
+  border-radius: 16px;
+  background: linear-gradient(135deg, #0a0e1a, #131c30);
+  color: var(--ink-0);
+  position: relative;
+  overflow: hidden;
+}
+
+.locations-cta::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(60% 90% at 0% 0%, rgba(56, 189, 248, 0.2), transparent 60%);
+}
+
+.locations-cta > div {
+  position: relative;
+  z-index: 1;
+}
+
+.locations-cta h2 {
+  font-size: 1.3rem;
+  font-weight: 800;
+  letter-spacing: -0.015em;
+  margin-bottom: 0.4rem;
+}
+
+.locations-cta p {
+  font-size: 0.94rem;
+  line-height: 1.6;
+  color: rgba(255, 255, 255, 0.7);
+  max-width: 46ch;
+}
+
+.locations-cta-actions {
+  display: flex;
+  gap: 0.6rem;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+}
+
+.locations-btn {
+  appearance: none;
+  border: 1.5px solid transparent;
+  cursor: pointer;
+  font-family: inherit;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.85rem 1.35rem;
+  border-radius: 10px;
+  font-size: 0.94rem;
+  font-weight: 700;
+  min-height: 48px;
+  background: var(--brand-500);
+  color: white;
+  transition: background 0.2s ease, transform 0.15s ease, border-color 0.2s ease;
+}
+
+.locations-btn:hover {
+  background: var(--brand-400);
+  transform: translateY(-1px);
+}
+
+.locations-btn--ghost {
+  background: transparent;
+  border-color: rgba(255, 255, 255, 0.25);
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.locations-btn--ghost:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.5);
+  color: white;
+}
+
+/* ---------------------------------------------------------- responsive -- */
+
+@media (max-width: 720px) {
+  .locations { padding: 5.5rem 1.25rem 4.5rem; }
+  .location {
+    flex-direction: column;
+    gap: 1.1rem;
+    padding: 1.35rem;
+  }
+  .location-mark {
+    width: 100%;
+    height: 76px;
+  }
+  .locations-cta {
+    flex-direction: column;
+    align-items: stretch;
+    padding: 1.75rem 1.5rem;
+  }
+  .locations-cta-actions { flex-direction: column; }
+  .locations-btn { justify-content: center; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .locations-dot { animation: none; }
+}
