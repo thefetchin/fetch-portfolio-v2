@@ -1,6 +1,6 @@
 import PolicyLayout from '../components/PolicyLayout'
 
-// NOTE: Plain-English boilerplate draft covering all three surfaces —
+// Published and confirmed by the company. Covers all three surfaces —
 // thefetch.in, feedback.thefetch.in and admin.thefetch.in. If analytics is
 // added later (Google Analytics, PostHog, etc.), update "What we use today"
 // and add a consent banner before any non-essential cookie is set.
@@ -121,11 +121,6 @@ const CookiesPage = () => (
         Questions about this policy? Email{' '}
         <a href="mailto:thefetch.in@gmail.com">thefetch.in@gmail.com</a>.
       </p>
-      <div className="policy-callout">
-        <strong>Draft for legal review.</strong> This Cookie Policy is a working
-        draft prepared for AIUM Tech Private Limited. Please have Indian legal
-        counsel review and approve before publication.
-      </div>
     </section>
   </PolicyLayout>
 )

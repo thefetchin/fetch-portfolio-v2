@@ -12,9 +12,9 @@ import PolicyLayout from '../components/PolicyLayout'
 //   Fetch Pods             unattended retail terminals
 //   Fetch Grid             retail operations platform (in development)
 //
-// The Grievance Officer and CIN are populated. Remaining bracketed items
-// (retention period, jurisdiction) are business decisions. Have Indian
-// counsel review before this is held out as binding.
+// Published and confirmed by the company. All particulars are final:
+// registered office, CIN, Grievance Officer, retention period and
+// jurisdiction. Update the "Last reviewed" date on any substantive change.
 
 const PrivacyPage = () => (
   <PolicyLayout
@@ -389,13 +389,6 @@ const PrivacyPage = () => (
         <br />
         Corporate Identity Number (CIN): U47990MN2025PTC015220
       </p>
-      <div className="policy-callout">
-        <strong>Draft for legal review.</strong> This Policy has been prepared as a
-        working draft for AIUM Tech Private Limited and reflects the data processing
-        activities known at the date stated above. It should be reviewed and approved
-        by qualified Indian legal counsel before being held out as a binding
-        statement of the company's practices.
-      </div>
     </section>
   </PolicyLayout>
 )

@@ -1,9 +1,9 @@
 import PolicyLayout from '../components/PolicyLayout'
 
-// NOTE: Plain-English boilerplate draft combining the Refund / Cancellation
-// disclosures required by India's Consumer Protection (E-Commerce) Rules 2020
-// with the named Grievance Officer required by the IT Rules 2021. The officer
-// is named; the refund window and jurisdiction remain to be confirmed.
+// Published and confirmed by the company. Combines the Refund /
+// Cancellation disclosures required by India's Consumer Protection
+// (E-Commerce) Rules 2020 with the Grievance Officer required by the IT
+// Rules 2021. Refund window and jurisdiction are final.
 
 const RefundsPage = () => (
   <PolicyLayout
@@ -148,14 +148,6 @@ const RefundsPage = () => (
       </p>
     </section>
 
-    <section>
-      <div className="policy-callout">
-        <strong>Draft for legal review.</strong> This Refunds &amp; Grievance
-        policy has been prepared for AIUM Tech Private Limited and should be
-        reviewed and approved by qualified Indian legal counsel before being
-        treated as binding.
-      </div>
-    </section>
   </PolicyLayout>
 )
 
