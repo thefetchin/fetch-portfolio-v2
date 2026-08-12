@@ -9,7 +9,7 @@ const TermsPage = () => (
     title="Terms of Service"
     description="Terms that govern your use of the Fetch website, Fetch Pods (vending machines) and Fetch Grid early-access materials. Operated by AIUM Tech Private Limited."
     canonical="https://thefetch.in/terms"
-    lastUpdated="2026-05-17"
+    lastUpdated="2026-08-12"
   >
     <section>
       <p>
@@ -25,8 +25,9 @@ const TermsPage = () => (
       <h2>1. About us</h2>
       <p>
         Fetch is operated by <strong>AIUM Tech Private Limited</strong>, a
-        company incorporated in India with registered office at Lucia Mansion,
-        Kalpane Kulshekara, Mangalore 575005, Karnataka. References to "Fetch",
+        company incorporated in India (CIN: U47990MN2025PTC015220) with its
+        registered office at Nagamapal Khwai Brahmapur, Lalambung (Part), Imphal
+        West, Lamphelpat, Manipur 795004, India. References to "Fetch",
         "we", "us" or "our" in these Terms mean AIUM Tech Private Limited.
       </p>
     </section>
@@ -190,10 +191,10 @@ const TermsPage = () => (
     <section>
       <h2>11. Governing law and jurisdiction</h2>
       <p>
-        These Terms are governed by the laws of India. The courts at{' '}
-        <span className="policy-placeholder">[Jurisdiction: Mangalore, Karnataka]</span>{' '}
-        will have exclusive jurisdiction over any dispute, subject to any
-        non-waivable rights you have as a consumer in your home state.
+        These Terms are governed by the laws of India. The courts at Mangalore,
+        Karnataka — being the place at which we carry on business — will have
+        exclusive jurisdiction over any dispute, subject to any non-waivable
+        rights you have as a consumer in your home state.
       </p>
     </section>
 

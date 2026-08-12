@@ -112,8 +112,8 @@ const RefundsPage = () => (
         <strong>Email:</strong>{' '}
         <a href="mailto:thefetch.in@gmail.com">thefetch.in@gmail.com</a>
         <br />
-        <strong>Postal address:</strong> AIUM Tech Private Limited, Lucia Mansion,
-        Kalpane Kulshekara, Mangalore 575005, Karnataka, India.
+        <strong>Postal address:</strong> AIUM Tech Private Limited, Nagamapal Khwai
+        Brahmapur, Lalambung (Part), Imphal West, Lamphelpat, Manipur 795004, India.
         <br />
         <strong>Phone:</strong>{' '}
         <a href="tel:+919019526185">+91 90195 26185</a> (business hours, IST).
@@ -134,8 +134,8 @@ const RefundsPage = () => (
       <ul>
         <li>The <strong>Data Protection Board of India</strong>, for data-protection grievances under the DPDPA 2023.</li>
         <li>The <strong>National Consumer Helpline</strong> (1915 / consumerhelpline.gov.in) for consumer disputes.</li>
-        <li>Any court of competent jurisdiction in{' '}
-          <span className="policy-placeholder">[Jurisdiction: Mangalore, Karnataka]</span>.
+        <li>Any court of competent jurisdiction at Mangalore, Karnataka, being
+          the place at which we carry on business.
         </li>
       </ul>
     </section>

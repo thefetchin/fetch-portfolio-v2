@@ -27,8 +27,9 @@ const PrivacyPage = () => (
       <p>
         This Privacy Policy ("<strong>Policy</strong>") describes the manner in which{' '}
         <strong>AIUM Tech Private Limited</strong>, a company incorporated under the
-        Companies Act, 2013 and having its registered office at Lucia Mansion,
-        Kalpane Kulshekara, Mangalore 575005, Karnataka, India, operating under the
+        Companies Act, 2013 (CIN: U47990MN2025PTC015220) and having its registered
+        office at Nagamapal Khwai Brahmapur, Lalambung (Part), Imphal West,
+        Lamphelpat, Manipur 795004, India, operating under the
         brand "<strong>Fetch</strong>" (hereinafter "<strong>Fetch</strong>",
         "<strong>we</strong>", "<strong>us</strong>" or "<strong>our</strong>"),
         collects, receives, stores, uses, processes, discloses, transfers and
@@ -324,7 +325,7 @@ const PrivacyPage = () => (
         <br />
         <strong>Entity:</strong> AIUM Tech Private Limited
         <br />
-        <strong>Address:</strong> Lucia Mansion, Kalpane Kulshekara, Mangalore 575005, Karnataka, India
+        <strong>Address:</strong> Nagamapal Khwai Brahmapur, Lalambung (Part), Imphal West, Lamphelpat, Manipur 795004, India
         <br />
         <strong>Email:</strong>{' '}
         <a href="mailto:thefetch.in@gmail.com">thefetch.in@gmail.com</a>
@@ -369,9 +370,10 @@ const PrivacyPage = () => (
       <p>
         This Policy shall be governed by and construed in accordance with the laws of
         India. Subject to any non-derogable right available to you as a consumer under
-        the Consumer Protection Act, 2019, the courts at{' '}
-        <span className="policy-placeholder">[Jurisdiction: Mangalore, Karnataka]</span>{' '}
-        shall have exclusive jurisdiction.
+        the Consumer Protection Act, 2019, the courts at Mangalore, Karnataka, being
+        the place at which the Company carries on business, shall have exclusive
+        jurisdiction in respect of any dispute arising out of or in connection with
+        this Policy.
       </p>
     </section>
 
@@ -380,7 +382,7 @@ const PrivacyPage = () => (
       <p>
         AIUM Tech Private Limited
         <br />
-        Lucia Mansion, Kalpane Kulshekara, Mangalore 575005, Karnataka, India
+        Registered office: Nagamapal Khwai Brahmapur, Lalambung (Part), Imphal West, Lamphelpat, Manipur 795004, India
         <br />
         <a href="mailto:thefetch.in@gmail.com">thefetch.in@gmail.com</a> ·{' '}
         <a href="tel:+919019526185">+91 90195 26185</a>
