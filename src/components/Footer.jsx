@@ -48,6 +48,7 @@ const Footer = () => {
               <a href="/#products"  onClick={goToSection('products')}>Fetch Pods</a>
               <a href="/#products"  onClick={goToSection('products')}>Fetch Grid <span className="footer-tag">soon</span></a>
               <a href="/#simulator" onClick={goToSection('simulator')}>Try a Pod</a>
+              <a href="/locations"  onClick={goToPath('/locations')}>Live locations</a>
             </div>
             <div className="footer-column">
               <h4>Company</h4>

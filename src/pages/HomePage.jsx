@@ -2,7 +2,6 @@ import { Suspense, lazy, useEffect } from 'react'
 import { useLocation } from 'react-router-dom'
 import usePageMeta from '../hooks/usePageMeta'
 import Hero from '../components/Hero'
-import Deployments from '../components/Deployments'
 import About from '../components/About'
 import Products from '../components/Products'
 import Features from '../components/Features'
@@ -29,7 +28,7 @@ const HomePage = () => {
   usePageMeta({
     title: 'Fetch | Fetch Pods & Fetch Grid — Smart Retail by AIUM Tech',
     description:
-      'Fetch is a smart retail technology company by AIUM Tech Private Limited. Fetch Pods are connected vending machines with UPI checkout and live inventory, deployed at wrkwrk Triangle and St Joseph Engineering College in Mangalore. Fetch Grid is the retail operations platform connecting any retailer with their distributors.',
+      'Fetch is a smart retail technology company by AIUM Tech Private Limited. Fetch Pods are connected vending machines with UPI checkout and live inventory, deployed at Wrkwrk Triangle and St Joseph Engineering College in Mangalore. Fetch Grid is the retail operations platform connecting any retailer with their distributors.',
     canonical: 'https://thefetch.in/',
   })
 
@@ -50,7 +49,6 @@ const HomePage = () => {
   return (
     <>
       <Hero />
-      <Deployments />
       <About />
       <Products />
       <Suspense fallback={<SimulatorPlaceholder />}>

@@ -17,8 +17,8 @@ const FEATURES = [
   },
   {
     icon: FiCreditCard,
-    title: 'Cashless & UPI Ready',
-    body: 'UPI, cards, wallets and tap-to-pay out of the box. Frictionless checkout for every customer.',
+    title: 'UPI Checkout',
+    body: 'Scan-and-pay over UPI, built in. Cards and wallets can be enabled per Pod as we roll them out.',
   },
   {
     icon: FiActivity,

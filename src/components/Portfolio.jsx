@@ -34,7 +34,7 @@ const Portfolio = () => {
     {
       title: 'Offices',
       host: 'Corporate floors & co-working',
-      live: 'wrkwrk Triangle, Mangalore',
+      live: 'Wrkwrk Triangle, Mangalore',
       description:
         'A Pod on the floor means staff stop leaving the building for a snack. Placed near lifts, break-out areas or reception, it runs unattended and restocks on a schedule set by real consumption data.',
       solves: 'Convenience without a staffed pantry',

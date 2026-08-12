@@ -68,9 +68,9 @@ const TermsPage = () => (
 
       <h3>4.2 Payment</h3>
       <p>
-        Pods accept payment via the payment methods displayed on the Pod
-        (typically UPI; cards and other methods may be available depending on
-        the Pod). The price charged is the price shown on screen at the moment
+        Pods currently accept payment by UPI. We may enable additional payment
+        methods in future; the methods available at any Pod are those displayed
+        on its screen. The price charged is the price shown on screen at the moment
         you confirm payment. All prices are inclusive of applicable taxes.
       </p>
 

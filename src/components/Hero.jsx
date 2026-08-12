@@ -141,7 +141,7 @@ const Hero = () => {
             <span className="stat-divider" aria-hidden="true" />
             <div className="stat-item">
               <div className="stat-value">100%</div>
-              <div className="stat-label">Cashless &amp; UPI ready</div>
+              <div className="stat-label">UPI checkout</div>
             </div>
             <span className="stat-divider" aria-hidden="true" />
             <div className="stat-item">

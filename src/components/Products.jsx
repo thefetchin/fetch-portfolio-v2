@@ -1,10 +1,11 @@
 import { useEffect, useRef } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { FiArrowRight, FiCheck } from 'react-icons/fi'
 import './Products.css'
 
 const PODS_FEATURES = [
   'IoT telemetry and real-time inventory',
-  'Cashless and UPI checkout out of the box',
+  'UPI checkout built in, ready to accept more methods',
   'Digital brand screens on every machine',
   '24/7 availability with proactive service',
 ]
@@ -18,6 +19,7 @@ const GRID_FEATURES = [
 
 const Products = () => {
   const ref = useRef(null)
+  const navigate = useNavigate()
 
   useEffect(() => {
     const node = ref.current
@@ -85,13 +87,22 @@ const Products = () => {
                 ))}
               </ul>
 
-              <button
-                type="button"
-                className="product-card__cta"
-                onClick={() => scrollTo('simulator')}
-              >
-                Try a Pod <FiArrowRight aria-hidden="true" />
-              </button>
+              <div className="product-card__ctas">
+                <button
+                  type="button"
+                  className="product-card__cta"
+                  onClick={() => scrollTo('simulator')}
+                >
+                  Try a Pod <FiArrowRight aria-hidden="true" />
+                </button>
+                <button
+                  type="button"
+                  className="product-card__cta product-card__cta--alt"
+                  onClick={() => navigate('/locations')}
+                >
+                  Live locations <FiArrowRight aria-hidden="true" />
+                </button>
+              </div>
             </div>
           </article>
 
