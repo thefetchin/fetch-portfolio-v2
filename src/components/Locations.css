@@ -23,11 +23,14 @@
   background: transparent;
   cursor: pointer;
   font-family: inherit;
-  display: inline-flex;
+  /* block-level (not inline-flex) so the "Live now" pill sits on its own
+     line beneath, rather than crowding alongside it */
+  display: flex;
+  width: fit-content;
   align-items: center;
   gap: 0.4rem;
   padding: 0.4rem 0;
-  margin-bottom: 1.75rem;
+  margin-bottom: 1.5rem;
   font-size: 0.86rem;
   font-weight: 600;
   color: var(--ink-500);
