@@ -34,14 +34,10 @@
 
     // Public Turnstile site key. Safe to commit — the *secret* is set with
     //   npx wrangler secret put TURNSTILE_SECRET
-    "TURNSTILE_SITE_KEY": "",
+    "TURNSTILE_SITE_KEY": ""
 
-    // Cloudflare Access settings that guard the admin host.
-    // Until these are set, /api/admin/* returns 401 (fail-closed).
-    //   ACCESS_TEAM_DOMAIN e.g. "thefetch.cloudflareaccess.com"
-    //   ACCESS_AUD         the Application Audience tag of the Access app
-    "ACCESS_TEAM_DOMAIN": "",
-    "ACCESS_AUD": ""
+    // Admin auth is email + password stored in D1 (see worker/auth.js).
+    // Create logins with:  npm run admin:create -- you@thefetch.in
   }
 
   // Secrets (never in this file — use `wrangler secret put <NAME>`):

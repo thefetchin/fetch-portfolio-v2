@@ -1,5 +1,5 @@
 import { validateSubmission } from './validate.js'
-import { verifyAccess } from './access.js'
+import { verifySession, handleLogin, handleLogout } from './auth.js'
 import { SUBMISSION_STATUSES } from '../shared/constants.js'
 
 /* ------------------------------------------------------------------ utils */
@@ -317,12 +317,27 @@ export default {
     const isFormHost = adminHost ? hostname !== adminHost : true
 
     try {
-      // ---- admin API — only on the admin host, always behind Access
+      // ---- admin API — only on the admin host, behind email+password auth
       if (pathname.startsWith('/api/admin/')) {
         if (!isAdminHost) return json({ error: 'not_found' }, 404)
 
-        const auth = await verifyAccess(request, env)
+        // Unauthenticated endpoints: sign in / sign out.
+        if (pathname === '/api/admin/login' && request.method === 'POST') {
+          const { status, data, cookie } = await handleLogin(request, env)
+          return json(data, status, cookie ? { 'set-cookie': cookie } : {})
+        }
+        if (pathname === '/api/admin/logout' && request.method === 'POST') {
+          const { status, data, cookie } = await handleLogout(request, env)
+          return json(data, status, cookie ? { 'set-cookie': cookie } : {})
+        }
+
+        const auth = await verifySession(request, env)
         if (!auth.ok) return json({ error: 'unauthorized', message: auth.reason }, 401)
+
+        // Lets the dashboard show who's signed in.
+        if (pathname === '/api/admin/me' && request.method === 'GET') {
+          return json({ email: auth.email })
+        }
 
         if (pathname === '/api/admin/submissions' && request.method === 'GET') {
           return await handleAdminSubmissions(request, env)

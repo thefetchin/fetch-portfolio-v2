@@ -1,8 +1,10 @@
 # Fetch Feedback — `feedback.thefetch.in`
 
-Signed-QR feedback capture for Fetch Pods. A Cloudflare Worker serves a React
-form and writes validated submissions to D1. Deployed separately from the
-marketing site, so pushing a form change never redeploys thefetch.in.
+Signed-QR feedback capture for Fetch Pods. One Cloudflare Worker serves two
+custom domains — the public form on `feedback.thefetch.in` and the
+password-protected dashboard on `admin.thefetch.in` — writing validated
+submissions to D1. Deployed separately from the marketing site, so pushing a
+form change never redeploys thefetch.in.
 
 ```
 QR sticker on a Pod
@@ -10,7 +12,7 @@ QR sticker on a Pod
       → Worker verifies the signature + Turnstile
         → validates + normalises the payload
           → D1
-              → /admin (Cloudflare Access) to read it
+              → admin.thefetch.in (email+password login) to read it
 ```
 
 ## What the form asks
@@ -105,22 +107,35 @@ npm run deploy
 Then in the Cloudflare dashboard add `feedback.thefetch.in` as a Custom
 Domain for the `fetch-feedback` Worker.
 
-**6. Lock down the dashboard** — Zero Trust → Access → Applications → Add:
+**6. Create your dashboard login**
 
-- Domain: `feedback.thefetch.in`, path `admin`
-- Policy: allow your team's emails
-- Copy the **Application Audience (AUD) tag** into `wrangler.jsonc` as
-  `ACCESS_AUD`, and your team domain (e.g. `aiumtech.cloudflareaccess.com`)
-  as `ACCESS_TEAM_DOMAIN`, then redeploy.
+Auth is email + password stored in D1 — no Cloudflare Access needed.
+Apply the auth migration once:
 
-Also add a second Access application covering path `api/admin` so the API
-can't be reached directly.
+```bash
+npm run db:auth
+```
 
-> The admin API is **fail-closed**: while `ACCESS_AUD` /
-> `ACCESS_TEAM_DOMAIN` are blank, `/api/admin/*` returns 401 on any real
-> hostname and only works from `localhost`. So a deploy that forgets Access
-> can't leak submissions — but the dashboard won't work either until you
-> set them.
+Then create a login. The password is typed on your machine, hashed locally,
+and only the hash is sent to the database:
+
+```bash
+npm run admin:create -- you@thefetch.in
+```
+
+Re-running for the same email rotates that password and kills existing
+sessions. Add as many logins as you need.
+
+### How the auth works
+
+| Concern | Handling |
+| --- | --- |
+| Password storage | PBKDF2-SHA256, per-user random salt, self-describing hash (`pbkdf2$sha256$<iters>$<salt>$<hash>`). Plaintext is never stored or transmitted anywhere but the login POST. |
+| Iteration count | `PBKDF2_ITERATIONS` in `shared/constants.js` — 25,000, sized to the Workers **free plan** 10ms CPU budget. On Workers Paid raise it to 210,000 and re-run `admin:create` per user. |
+| Sessions | 32 random bytes in an `HttpOnly; Secure; SameSite=Lax` cookie, 7-day expiry. The DB stores only a SHA-256 of the token, so a database leak can't be replayed as a live session. |
+| Brute force | 8 attempts per IP per 15 minutes, tracked in `admin_login_attempts`. |
+| User enumeration | Unknown emails and wrong passwords return the identical message, and a dummy hash is computed so response timing matches. |
+| Revocation | `DELETE FROM admin_sessions WHERE user_id = …`, or set `admin_users.active = 0`. |
 
 ## Printing QR codes
 
@@ -142,15 +157,24 @@ npx wrangler dev --local         # worker + D1 on :8787
 npm run dev                      # optional: Vite HMR on :5174, proxies /api
 ```
 
-Locally, `QR_SECRET` is unset so signature checks are skipped. The admin
-dashboard is **denied by default even locally** — to use it in dev, create
-`.dev.vars` (gitignored, never uploaded by `wrangler deploy`):
+Locally, `QR_SECRET` is unset so signature checks are skipped. Create a
+local login and sign in exactly as in production:
+
+```bash
+npm run db:local                        # base schema
+npx wrangler d1 execute fetch-feedback --local --file=./migrations/002_admin_auth.sql
+npm run admin:create -- you@thefetch.in --local
+```
+
+Because production splits the two surfaces across subdomains but local dev
+has one origin, put this in `.dev.vars` (gitignored) so the local host acts
+as the admin host:
 
 ```
-ALLOW_INSECURE_ADMIN="true"
+ADMIN_HOSTNAME="feedback.thefetch.in"
 ```
 
-Never set that as a production var. Visit:
+Visit:
 
 - `http://localhost:8787/p/POD-MNG-001` — the form
 - `http://localhost:8787/admin` — the dashboard
@@ -161,12 +185,16 @@ Never set that as a production var. Visit:
 feedback/
   shared/constants.js     ← options + limits (form AND worker import this)
   worker/
-    index.js              ← routes, HMAC, Turnstile, rate limit, dedupe
+    index.js              ← routes, host split, HMAC, Turnstile, rate limits
     validate.js           ← normalisation + whitelisting
-    access.js             ← Cloudflare Access JWT verification
-  src/                    ← React form + admin dashboard
-  scripts/generate-qr.mjs ← signed QR generator
+    auth.js               ← password hashing, sessions, login/logout
+  src/                    ← React form + admin dashboard (+ login)
+  scripts/
+    generate-qr.mjs       ← signed QR generator
+    create-admin.mjs      ← creates/rotates dashboard logins
   schema.sql              ← D1 tables, constraints, indexes
+  migrations/
+    002_admin_auth.sql    ← admin_users / admin_sessions / login attempts
 ```
 
 ## Adding a question later

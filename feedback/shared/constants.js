@@ -83,3 +83,27 @@ export const LIMITS = {
 
 /** Helper: turn an option array into a Set of valid values for validation. */
 export const valuesOf = (options) => new Set(options.map((o) => o.value))
+
+/**
+ * PBKDF2 iterations for admin passwords. Imported by BOTH worker/auth.js and
+ * scripts/create-admin.mjs so the two can never drift.
+ *
+ * Why not the OWASP-recommended 210,000? Password hashing burns CPU, and a
+ * Workers **free plan** request is capped at 10ms of CPU. Measured on this
+ * hardware:
+ *
+ *     210,000 -> ~24ms   exceeds the free-plan budget, request is killed
+ *     100,000 -> ~10ms   right at the limit
+ *      50,000 -> ~5.6ms
+ *      25,000 -> ~2.5ms  comfortable headroom for the DB work in the request
+ *
+ * 25,000 is therefore the safe ceiling on the free plan. The online-guessing
+ * risk is covered by the 8-attempts-per-15-minutes lockout in worker/auth.js
+ * plus a 12-character minimum password; the reduced count only matters to an
+ * attacker who has already exfiltrated the D1 database.
+ *
+ * On Workers Paid (30s CPU/request) raise this to 210000 and re-run
+ * `npm run admin:create` for each user to rotate their hash. The stored
+ * format records its own iteration count, so old and new hashes coexist.
+ */
+export const PBKDF2_ITERATIONS = 25_000

@@ -104,11 +104,78 @@ function Row({ row, onStatus }) {
   )
 }
 
+function Login({ onSignedIn }) {
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [error, setError] = useState(null)
+  const [busy, setBusy] = useState(false)
+
+  const submit = async (e) => {
+    e.preventDefault()
+    setError(null)
+    setBusy(true)
+    try {
+      const res = await fetch('/api/admin/login', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ email, password }),
+      })
+      const data = await res.json()
+      if (!res.ok) setError(data.message || 'Could not sign in.')
+      else onSignedIn(data.email)
+    } catch {
+      setError('Could not reach the server.')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <main className="login">
+      <form className="login-card" onSubmit={submit}>
+        <img src="/fetch-logo.svg" alt="Fetch" className="login-logo" />
+        <h1>Submissions</h1>
+        <p className="login-sub">Sign in to view Pod feedback and complaints.</p>
+
+        <label className="login-label" htmlFor="email">Email</label>
+        <input
+          id="email"
+          className="login-input"
+          type="email"
+          autoComplete="username"
+          autoFocus
+          required
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+        />
+
+        <label className="login-label" htmlFor="password">Password</label>
+        <input
+          id="password"
+          className="login-input"
+          type="password"
+          autoComplete="current-password"
+          required
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+        />
+
+        {error && <div className="login-error" role="alert">{error}</div>}
+
+        <button className="login-btn" type="submit" disabled={busy}>
+          {busy ? 'Signing in…' : 'Sign in'}
+        </button>
+      </form>
+    </main>
+  )
+}
+
 export default function Admin() {
   const [data, setData] = useState(null)
   const [error, setError] = useState(null)
   const [kind, setKind] = useState('')
   const [status, setStatus] = useState('')
+  const [authed, setAuthed] = useState(null)   // null = unknown, false = login, string = email
 
   const load = useCallback(async () => {
     setError(null)
@@ -119,7 +186,7 @@ export default function Admin() {
     try {
       const res = await fetch(`/api/admin/submissions?${params}`)
       if (res.status === 401) {
-        setError('Not authorised. Sign in through Cloudflare Access to view this page.')
+        setAuthed(false)
         return
       }
       if (!res.ok) {
@@ -127,12 +194,23 @@ export default function Admin() {
         return
       }
       setData(await res.json())
+      setAuthed((prev) => prev || true)
     } catch {
       setError('Could not reach the server.')
     }
   }, [kind, status])
 
   useEffect(() => { load() }, [load])
+
+  const signOut = async () => {
+    await fetch('/api/admin/logout', { method: 'POST' })
+    setAuthed(false)
+    setData(null)
+  }
+
+  if (authed === false) {
+    return <Login onSignedIn={() => { setAuthed(true); load() }} />
+  }
 
   const updateStatus = async (id, next) => {
     // optimistic
@@ -178,6 +256,7 @@ export default function Admin() {
         <div className="admin-actions">
           <button type="button" className="abtn" onClick={load}>Refresh</button>
           <button type="button" className="abtn" onClick={exportCsv}>Export CSV</button>
+          <button type="button" className="abtn" onClick={signOut}>Sign out</button>
         </div>
       </header>
 

@@ -11,7 +11,9 @@
     "deploy": "npm run build && wrangler deploy",
     "db:local": "wrangler d1 execute fetch-feedback --local --file=./schema.sql",
     "db:remote": "wrangler d1 execute fetch-feedback --remote --file=./schema.sql",
-    "qr": "node scripts/generate-qr.mjs"
+    "qr": "node scripts/generate-qr.mjs",
+    "admin:create": "node scripts/create-admin.mjs",
+    "db:auth": "wrangler d1 execute fetch-feedback --remote --file=./migrations/002_admin_auth.sql"
   },
   "dependencies": {
     "react": "^18.2.0",
