@@ -69,7 +69,12 @@ const Partners = () => {
             We connect spaces, advertisers, and brands through a single smart-vending network.
           </p>
         </div>
-        <div className="partners-grid">
+        <div
+          className="partners-grid"
+          tabIndex={0}
+          role="group"
+          aria-label="Who we work with — scroll horizontally on smaller screens"
+        >
           {partners.map((partner) => {
             const Icon = partner.icon
             return (

@@ -38,11 +38,15 @@
   -webkit-overflow-scrolling: touch;
   scrollbar-width: thin;
   scrollbar-color: var(--accent-color) transparent;
-  cursor: grab;
 }
 
-.portfolio-grid:active {
-  cursor: grabbing;
+/* Focusable so keyboard users can arrow-scroll the row. */
+.portfolio-grid:focus-visible,
+.features-grid:focus-visible,
+.partners-grid:focus-visible {
+  outline: 2px solid var(--brand-500);
+  outline-offset: 4px;
+  border-radius: 4px;
 }
 
 .portfolio-grid::-webkit-scrollbar {
@@ -98,6 +102,28 @@
 
 .portfolio-card:hover::before {
   transform: scaleX(1);
+}
+
+.portfolio-live {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.2rem 0.55rem;
+  border-radius: 999px;
+  background: rgba(34, 197, 94, 0.12);
+  border: 1px solid rgba(34, 197, 94, 0.35);
+  color: #15803d;
+  font-size: 0.64rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.portfolio-live-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #22c55e;
 }
 
 .portfolio-card-header {

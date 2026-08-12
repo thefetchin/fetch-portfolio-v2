@@ -409,7 +409,7 @@ const VendingSim = () => {
                 disabled={!(mode === 'awaiting' && insideDoor.length > 0)}
                 aria-label="Push the door to collect"
               >
-                <img src="/fetch-logo.svg" alt="" className="vsim-door-logo" />
+                <img src="/fetch-pods-logo.png" alt="" className="vsim-door-logo" />
                 <span className="vsim-door-label">
                   {mode === 'awaiting' && insideDoor.length > 0
                     ? 'PUSH TO COLLECT'

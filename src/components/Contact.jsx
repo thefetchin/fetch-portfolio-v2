@@ -133,8 +133,14 @@ const Contact = () => {
             </div>
             <div className="info-card">
               <div className="info-icon"><FiMapPin aria-hidden="true" /></div>
-              <h3>Address</h3>
-              <p className="info-address">Lucia Mansion, Kalpane Kulshekara,<br />Mangalore - 575005</p>
+              <h3>Operations</h3>
+              <p className="info-address">
+                Lucia Mansion, Kalpane Kulshekara,<br />Mangalore 575005, Karnataka
+              </p>
+              <p className="info-regd">
+                Registered office: Nagamapal Khwai Brahmapur, Lalambung (Part),
+                Imphal West, Lamphelpat, Manipur 795004
+              </p>
             </div>
           </div>
           <form className="contact-form" onSubmit={handleSubmit}>

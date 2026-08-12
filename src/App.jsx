@@ -1,8 +1,7 @@
-import { useCallback, useEffect, useState } from 'react'
+import { Suspense, lazy, useCallback, useEffect, useState } from 'react'
 import { Routes, Route, useLocation, useNavigate } from 'react-router-dom'
 import Navbar from './components/Navbar'
 import Footer from './components/Footer'
-import MoguraGame from './components/MoguraGame'
 import HomePage from './pages/HomePage'
 import CareersPage from './pages/CareersPage'
 import PrivacyPage from './pages/PrivacyPage'
@@ -13,8 +12,15 @@ import { EggProvider, useEggs } from './context/EggContext'
 import useKonami from './hooks/useKonami'
 import './App.css'
 
+/** Non-essential and fixed-position, so it's split out and mounted when idle. */
+const MoguraGame = lazy(() => import('./components/MoguraGame'))
+
+/** A floating game button doesn't belong on top of a legal document. */
+const NO_GAME_ROUTES = ['/privacy', '/terms', '/cookies', '/refunds']
+
 function AppInner() {
   const [scrollY, setScrollY] = useState(0)
+  const [gameReady, setGameReady] = useState(false)
   const { setKonamiActive, triggerConfetti, showToast } = useEggs()
   const navigate = useNavigate()
   const location = useLocation()
@@ -23,6 +29,15 @@ function AppInner() {
     const handleScroll = () => setScrollY(window.scrollY)
     window.addEventListener('scroll', handleScroll, { passive: true })
     return () => window.removeEventListener('scroll', handleScroll)
+  }, [])
+
+  // Defer the game chunk until the browser is idle so it never competes with
+  // first paint.
+  useEffect(() => {
+    const schedule = window.requestIdleCallback || ((fn) => setTimeout(fn, 1200))
+    const cancel = window.cancelIdleCallback || clearTimeout
+    const handle = schedule(() => setGameReady(true))
+    return () => cancel(handle)
   }, [])
 
   const onKonami = useCallback(() => {
@@ -46,6 +61,8 @@ function AppInner() {
 
   useKonami(onKonami)
 
+  const showGame = gameReady && !NO_GAME_ROUTES.includes(location.pathname)
+
   return (
     <div className="App">
       <Navbar scrollY={scrollY} />
@@ -59,7 +76,11 @@ function AppInner() {
         <Route path="*" element={<HomePage />} />
       </Routes>
       <Footer />
-      <MoguraGame />
+      {showGame && (
+        <Suspense fallback={null}>
+          <MoguraGame />
+        </Suspense>
+      )}
     </div>
   )
 }

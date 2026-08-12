@@ -43,14 +43,19 @@ const Navbar = ({ scrollY }) => {
   return (
     <nav className={`navbar ${isScrolled ? 'scrolled' : ''}`}>
       <div className="nav-container">
-        <div className="nav-logo" onClick={onLogo}>
+        <button
+          type="button"
+          className="nav-logo"
+          onClick={onLogo}
+          aria-label="Fetch — back to top"
+        >
           <img src="/fetch-logo.svg" alt="Fetch" className="logo-image" />
-        </div>
+        </button>
         <div className={`nav-menu ${isMenuOpen ? 'active' : ''}`}>
           <a href="/#about"     onClick={(e) => { e.preventDefault(); goToSection('about') }}>About</a>
           <a href="/#products"  onClick={(e) => { e.preventDefault(); goToSection('products') }}>Products</a>
           <a href="/#partners"  onClick={(e) => { e.preventDefault(); goToSection('partners') }}>Partners</a>
-          <a href="/#portfolio" onClick={(e) => { e.preventDefault(); goToSection('portfolio') }}>Portfolio</a>
+          <a href="/#portfolio" onClick={(e) => { e.preventDefault(); goToSection('portfolio') }}>Use cases</a>
           <a href="/careers"    onClick={(e) => { e.preventDefault(); goToPath('/careers') }}>Careers</a>
           <a href="/#simulator" onClick={(e) => { e.preventDefault(); goToSection('simulator') }}>Try a Pod</a>
           <button

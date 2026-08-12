@@ -75,7 +75,12 @@ const Features = () => {
           </p>
         </div>
 
-        <div className="features-grid">
+        <div
+          className="features-grid"
+          tabIndex={0}
+          role="group"
+          aria-label="Fetch Pod capabilities — scroll horizontally on smaller screens"
+        >
           {FEATURES.map(({ icon: Icon, title, body }) => (
             <article className="feature-card" key={title}>
               <div className="feature-icon"><Icon aria-hidden="true" /></div>

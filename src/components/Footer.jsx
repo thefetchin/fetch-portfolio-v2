@@ -53,7 +53,7 @@ const Footer = () => {
               <h4>Company</h4>
               <a href="/#about"     onClick={goToSection('about')}>About</a>
               <a href="/#partners"  onClick={goToSection('partners')}>Partners</a>
-              <a href="/#portfolio" onClick={goToSection('portfolio')}>Portfolio</a>
+              <a href="/#portfolio" onClick={goToSection('portfolio')}>Use cases</a>
               <a href="/careers"    onClick={goToPath('/careers')}>Careers</a>
             </div>
             <div className="footer-column">
@@ -74,11 +74,18 @@ const Footer = () => {
           <a href="/refunds" onClick={goToPath('/refunds')}>Refunds &amp; Grievance</a>
         </nav>
         <div className="footer-bottom">
-          <p>
-            &copy; {new Date().getFullYear()} <strong>AIUM Tech Private Limited</strong>
-            <span className="footer-sep" aria-hidden="true"> · </span>
-            <span>Operating as Fetch · Mangalore, India.</span>
-          </p>
+          <div className="footer-legalinfo">
+            <p>
+              &copy; {new Date().getFullYear()} <strong>AIUM Tech Private Limited</strong>
+              <span className="footer-sep" aria-hidden="true"> · </span>
+              <span>Operating as Fetch</span>
+            </p>
+            <p className="footer-ids">
+              CIN U47990MN2025PTC015220
+              <span className="footer-sep" aria-hidden="true"> · </span>
+              GSTIN 29ABBCA9450H1ZH
+            </p>
+          </div>
           <button className="scroll-to-top" onClick={scrollToTop} aria-label="Scroll to top">
             <FiArrowUp />
           </button>
