@@ -306,25 +306,21 @@ async function handleAdminUpdate(request, env, id) {
 export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url)
-    const { pathname } = url
+    const { pathname, hostname } = url
+
+    // Host split: the dashboard lives on its own subdomain so Cloudflare
+    // Access can protect the entire hostname (HTML included), and the public
+    // form host can never serve admin routes even if someone guesses a path.
+    // When ADMIN_HOSTNAME is unset (local dev) both surfaces are available.
+    const adminHost = env.ADMIN_HOSTNAME || ''
+    const isAdminHost = adminHost ? hostname === adminHost : true
+    const isFormHost = adminHost ? hostname !== adminHost : true
 
     try {
-      // ---- public API
-      if (pathname.startsWith('/api/pod/') && request.method === 'GET') {
-        return await handlePodLookup(request, env, decodeURIComponent(pathname.slice('/api/pod/'.length)))
-      }
-
-      if (pathname === '/api/submit' && request.method === 'POST') {
-        return await handleSubmit(request, env)
-      }
-
-      if (pathname === '/api/config' && request.method === 'GET') {
-        // Lets the form know whether to render the Turnstile widget.
-        return json({ turnstileSiteKey: env.TURNSTILE_SITE_KEY || null })
-      }
-
-      // ---- admin API (Cloudflare Access protected)
+      // ---- admin API — only on the admin host, always behind Access
       if (pathname.startsWith('/api/admin/')) {
+        if (!isAdminHost) return json({ error: 'not_found' }, 404)
+
         const auth = await verifyAccess(request, env)
         if (!auth.ok) return json({ error: 'unauthorized', message: auth.reason }, 401)
 
@@ -336,6 +332,24 @@ export default {
           return await handleAdminUpdate(request, env, updateMatch[1])
         }
         return json({ error: 'not_found' }, 404)
+      }
+
+      // ---- public API — only on the form host
+      if (pathname.startsWith('/api/') && !isFormHost) {
+        return json({ error: 'not_found' }, 404)
+      }
+
+      if (pathname.startsWith('/api/pod/') && request.method === 'GET') {
+        return await handlePodLookup(request, env, decodeURIComponent(pathname.slice('/api/pod/'.length)))
+      }
+
+      if (pathname === '/api/submit' && request.method === 'POST') {
+        return await handleSubmit(request, env)
+      }
+
+      if (pathname === '/api/config' && request.method === 'GET') {
+        // Lets the form know whether to render the Turnstile widget.
+        return json({ turnstileSiteKey: env.TURNSTILE_SITE_KEY || null })
       }
 
       // ---- static assets + SPA fallback (handled by Workers Assets)

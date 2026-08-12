@@ -7,13 +7,19 @@ import './App.css'
  * Tiny hand-rolled router — this app has exactly two surfaces, so pulling in
  * react-router would be more weight than the whole form.
  *
- *   /p/<POD_ID>?t=<sig>  → the feedback form for that Pod
- *   /admin               → the Cloudflare Access-protected dashboard
+ * In production the two surfaces live on separate subdomains:
+ *   feedback.thefetch.in/p/<POD_ID>?t=<sig>  → the form for that Pod
+ *   admin.thefetch.in                        → the dashboard (behind Access)
+ *
+ * Locally there's one origin, so /admin still works as a path.
  */
 function parseRoute() {
-  const { pathname, searchParams } = new URL(window.location.href)
+  const { pathname, searchParams, hostname } = new URL(window.location.href)
 
-  if (pathname === '/admin' || pathname.startsWith('/admin/')) {
+  // Anything served from an `admin.*` hostname is the dashboard, whatever
+  // the path — Cloudflare Access guards that entire hostname.
+  const onAdminHost = hostname.split('.')[0] === 'admin'
+  if (onAdminHost || pathname === '/admin' || pathname.startsWith('/admin/')) {
     return { view: 'admin' }
   }
 

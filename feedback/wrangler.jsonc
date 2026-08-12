@@ -3,6 +3,7 @@
   "name": "fetch-feedback",
   "main": "worker/index.js",
   "compatibility_date": "2026-05-17",
+  "account_id": "0fd7a8982199882878b4a278d4ca01b5",
 
   "assets": {
     "directory": "./dist",
@@ -14,27 +15,30 @@
     {
       "binding": "DB",
       "database_name": "fetch-feedback",
-      // Replace with the id printed by:
-      //   npx wrangler d1 create fetch-feedback
-      "database_id": "REPLACE_WITH_D1_DATABASE_ID"
+      "database_id": "38e16c5c-0041-42c5-b96d-44cbff519553"
     }
   ],
 
+  // Two custom domains served by one Worker:
+  //   feedback.thefetch.in — the public form (QR target)
+  //   admin.thefetch.in    — the dashboard, put behind Cloudflare Access
+  // The Worker refuses admin routes on the public host and vice versa.
   "routes": [
-    {
-      "pattern": "feedback.thefetch.in",
-      "custom_domain": true
-    }
+    { "pattern": "feedback.thefetch.in", "custom_domain": true },
+    { "pattern": "admin.thefetch.in", "custom_domain": true }
   ],
 
   "vars": {
+    "FORM_HOSTNAME": "feedback.thefetch.in",
+    "ADMIN_HOSTNAME": "admin.thefetch.in",
+
     // Public Turnstile site key. Safe to commit — the *secret* is set with
     //   npx wrangler secret put TURNSTILE_SECRET
     "TURNSTILE_SITE_KEY": "",
 
-    // Cloudflare Access settings that guard /api/admin/*.
-    // Leave blank for local dev; fill in before going live.
-    //   ACCESS_TEAM_DOMAIN e.g. "aiumtech.cloudflareaccess.com"
+    // Cloudflare Access settings that guard the admin host.
+    // Until these are set, /api/admin/* returns 401 (fail-closed).
+    //   ACCESS_TEAM_DOMAIN e.g. "thefetch.cloudflareaccess.com"
     //   ACCESS_AUD         the Application Audience tag of the Access app
     "ACCESS_TEAM_DOMAIN": "",
     "ACCESS_AUD": ""
