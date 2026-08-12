@@ -2,15 +2,15 @@ import PolicyLayout from '../components/PolicyLayout'
 
 // NOTE: Plain-English boilerplate draft combining the Refund / Cancellation
 // disclosures required by India's Consumer Protection (E-Commerce) Rules 2020
-// with the named Grievance Officer required by the IT Rules 2021. Replace the
-// bracketed placeholders with the actual officer's details before publishing.
+// with the named Grievance Officer required by the IT Rules 2021. The officer
+// is named; the refund window and jurisdiction remain to be confirmed.
 
 const RefundsPage = () => (
   <PolicyLayout
     title="Refunds & Grievance"
     description="How to claim a refund for a Fetch Pod purchase, and how to escalate a complaint to our Grievance Officer. Operated by AIUM Tech Private Limited."
     canonical="https://thefetch.in/refunds"
-    lastUpdated="2026-05-17"
+    lastUpdated="2026-08-12"
   >
     <section>
       <p>
@@ -105,9 +105,9 @@ const RefundsPage = () => (
 
       <h3>Our Grievance Officer</h3>
       <p>
-        <strong>Name:</strong> <span className="policy-placeholder">[Grievance Officer Name]</span>
+        <strong>Name:</strong> Mr. Ronan Mark D'souza
         <br />
-        <strong>Designation:</strong> Grievance Officer, AIUM Tech Private Limited
+        <strong>Designation:</strong> Director and Grievance Officer, AIUM Tech Private Limited
         <br />
         <strong>Email:</strong>{' '}
         <a href="mailto:thefetch.in@gmail.com">thefetch.in@gmail.com</a>
@@ -153,9 +153,8 @@ const RefundsPage = () => (
       <div className="policy-callout">
         <strong>Draft for legal review.</strong> This Refunds &amp; Grievance
         policy is a working draft prepared for AIUM Tech Private Limited. The
-        refund window, the Grievance Officer's name, and the jurisdiction
-        clause all need to be confirmed by Indian legal counsel before this is
-        treated as binding.
+        refund window and the jurisdiction clause remain to be confirmed by
+        Indian legal counsel before this is treated as binding.
       </div>
     </section>
   </PolicyLayout>

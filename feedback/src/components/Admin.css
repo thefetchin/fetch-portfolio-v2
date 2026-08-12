@@ -1,0 +1,395 @@
+/* ---------------------------------------------------------------- login -- */
+
+.login {
+  min-height: 100dvh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+  background:
+    radial-gradient(70% 50% at 50% 0%, rgba(14, 165, 233, 0.10), transparent 60%),
+    var(--ink-50);
+}
+
+.login-card {
+  width: min(380px, 100%);
+  background: var(--ink-0);
+  border: 1px solid var(--ink-100);
+  border-radius: var(--radius-lg);
+  padding: 2.25rem 2rem;
+  box-shadow: var(--shadow-md);
+  display: flex;
+  flex-direction: column;
+}
+
+.login-logo {
+  height: 30px;
+  width: auto;
+  margin-bottom: 1.5rem;
+}
+
+.login-card h1 {
+  font-size: 1.4rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  margin-bottom: 0.3rem;
+}
+
+.login-sub {
+  font-size: 0.9rem;
+  color: var(--ink-500);
+  margin-bottom: 1.5rem;
+}
+
+.login-label {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--ink-700);
+  margin-bottom: 0.35rem;
+}
+
+.login-input {
+  width: 100%;
+  padding: 0.75rem 0.9rem;
+  margin-bottom: 1rem;
+  border: 1.5px solid var(--ink-200);
+  border-radius: var(--radius-md);
+  font-size: 16px; /* no iOS zoom */
+  color: var(--ink-900);
+  background: var(--ink-0);
+  -webkit-appearance: none;
+  appearance: none;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.login-input:focus {
+  outline: none;
+  border-color: var(--brand-500);
+  box-shadow: 0 0 0 4px rgba(14, 165, 233, 0.12);
+}
+
+.login-error {
+  padding: 0.7rem 0.9rem;
+  margin-bottom: 1rem;
+  background: rgba(220, 38, 38, 0.08);
+  border: 1px solid rgba(220, 38, 38, 0.3);
+  border-radius: var(--radius-md);
+  color: #991b1b;
+  font-size: 0.86rem;
+}
+
+.login-btn {
+  appearance: none;
+  border: none;
+  cursor: pointer;
+  background: var(--ink-900);
+  color: var(--ink-0);
+  padding: 0.85rem 1.25rem;
+  border-radius: var(--radius-md);
+  font-weight: 700;
+  font-size: 0.98rem;
+  min-height: 48px;
+  transition: background 0.2s ease;
+}
+
+.login-btn:hover:not(:disabled) { background: var(--brand-600); }
+.login-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+
+/* ------------------------------------------------------------ dashboard -- */
+
+.admin {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 2rem 1.25rem 4rem;
+}
+
+.admin-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+  margin-bottom: 1.5rem;
+}
+
+.admin-eyebrow {
+  display: block;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--brand-600);
+  margin-bottom: 0.25rem;
+}
+
+.admin-head h1 {
+  font-size: 1.6rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+.admin-actions { display: flex; gap: 0.5rem; }
+
+.abtn {
+  appearance: none;
+  cursor: pointer;
+  background: var(--ink-0);
+  border: 1px solid var(--ink-200);
+  color: var(--ink-700);
+  padding: 0.55rem 1rem;
+  border-radius: var(--radius-md);
+  font-size: 0.88rem;
+  font-weight: 600;
+  min-height: 40px;
+  transition: border-color 0.2s ease, color 0.2s ease;
+}
+
+.abtn:hover { border-color: var(--ink-900); color: var(--ink-900); }
+
+.admin-error {
+  padding: 0.9rem 1.1rem;
+  background: rgba(220, 38, 38, 0.08);
+  border: 1px solid rgba(220, 38, 38, 0.3);
+  border-radius: var(--radius-md);
+  color: #991b1b;
+  font-size: 0.92rem;
+  margin-bottom: 1.25rem;
+}
+
+/* ---------------------------------------------------------------- tabs -- */
+
+.admin-tabs {
+  display: inline-flex;
+  gap: 0.25rem;
+  padding: 0.3rem;
+  margin-bottom: 1.25rem;
+  background: var(--ink-100);
+  border-radius: var(--radius-md);
+}
+
+.admin-tab {
+  appearance: none;
+  border: none;
+  background: transparent;
+  color: var(--ink-500);
+  padding: 0.55rem 1.1rem;
+  border-radius: 9px;
+  font-size: 0.88rem;
+  font-weight: 600;
+  cursor: pointer;
+  min-height: 40px;
+  transition: background 0.2s ease, color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.admin-tab.is-active {
+  background: var(--ink-0);
+  color: var(--ink-900);
+  box-shadow: var(--shadow-sm);
+}
+
+/* --------------------------------------------------------------- stats -- */
+
+.stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+  gap: 0.6rem;
+  margin-bottom: 1.25rem;
+}
+
+.stat {
+  background: var(--ink-0);
+  border: 1px solid var(--ink-100);
+  border-radius: var(--radius-md);
+  padding: 0.85rem 1rem;
+  text-align: center;
+}
+
+.stat span {
+  display: block;
+  font-size: 1.5rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  font-feature-settings: 'tnum';
+  color: var(--ink-900);
+  line-height: 1.15;
+}
+
+.stat label {
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink-500);
+}
+
+.stat-warn span { color: #b45309; }
+
+/* ------------------------------------------------------------- filters -- */
+
+.filters {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+  flex-wrap: wrap;
+}
+
+.filters select,
+.status {
+  appearance: none;
+  background: var(--ink-0);
+  border: 1px solid var(--ink-200);
+  border-radius: var(--radius-md);
+  padding: 0.5rem 0.75rem;
+  font-size: 0.86rem;
+  color: var(--ink-700);
+  cursor: pointer;
+  min-height: 40px;
+}
+
+/* --------------------------------------------------------------- table -- */
+
+.table-wrap {
+  background: var(--ink-0);
+  border: 1px solid var(--ink-100);
+  border-radius: var(--radius-lg);
+  overflow-x: auto;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+  min-width: 720px;
+}
+
+.table thead th {
+  text-align: left;
+  padding: 0.75rem 1rem;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-500);
+  border-bottom: 1px solid var(--ink-100);
+  background: var(--ink-50);
+  position: sticky;
+  top: 0;
+}
+
+/* NOTE: must not be called `.row` — the form stylesheet defines a `.row`
+   grid helper, and Vite bundles both files into one global stylesheet. */
+.admin-row { cursor: pointer; transition: background 0.15s ease; }
+.admin-row:hover { background: var(--ink-50); }
+.admin-row.is-new { background: rgba(14, 165, 233, 0.04); }
+
+.table td {
+  padding: 0.8rem 1rem;
+  border-bottom: 1px solid var(--ink-100);
+  vertical-align: top;
+}
+
+.pill {
+  display: inline-block;
+  padding: 0.2rem 0.6rem;
+  border-radius: var(--radius-pill);
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+
+.pill-complaint { background: rgba(220, 38, 38, 0.1);  color: #991b1b; }
+.pill-feedback  { background: rgba(14, 165, 233, 0.12); color: var(--brand-700); }
+
+.cell-summary { max-width: 420px; }
+
+.cell-comment {
+  margin-top: 0.25rem;
+  font-size: 0.85rem;
+  color: var(--ink-500);
+  line-height: 1.45;
+}
+
+.cell-pod, .cell-date {
+  color: var(--ink-500);
+  font-size: 0.84rem;
+  white-space: nowrap;
+}
+
+.tag {
+  display: inline-block;
+  margin-left: 0.4rem;
+  padding: 0.1rem 0.45rem;
+  border-radius: var(--radius-pill);
+  font-size: 0.66rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.tag-refund { background: rgba(245, 158, 11, 0.18); color: #92400e; }
+
+.muted { color: var(--ink-500); font-weight: 400; }
+
+.status-new         { border-color: var(--brand-300); color: var(--brand-700); }
+.status-in_progress { border-color: var(--warn-500);  color: #92400e; }
+.status-resolved    { border-color: var(--ok-500);    color: #15803d; }
+.status-spam        { border-color: var(--ink-200);   color: var(--ink-500); }
+
+/* -------------------------------------------------------------- detail -- */
+
+.detail-row td {
+  background: var(--ink-50);
+  padding: 1rem 1.25rem 1.25rem;
+}
+
+.detail {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 0.75rem 1.5rem;
+  margin: 0;
+}
+
+.detail > div { min-width: 0; }
+
+.detail dt {
+  font-size: 0.66rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink-500);
+  margin-bottom: 0.15rem;
+}
+
+.detail dd {
+  margin: 0;
+  font-size: 0.9rem;
+  color: var(--ink-900);
+  word-break: break-word;
+}
+
+.detail code {
+  font-size: 0.82rem;
+  background: var(--ink-100);
+  padding: 0.1rem 0.35rem;
+  border-radius: 5px;
+}
+
+.detail a { color: var(--brand-700); }
+
+.empty {
+  text-align: center;
+  padding: 3rem 1rem !important;
+  color: var(--ink-500);
+}
+
+.admin-foot {
+  margin-top: 1rem;
+  font-size: 0.8rem;
+  color: var(--ink-500);
+}
+
+@media (max-width: 600px) {
+  .admin { padding: 1.25rem 0.85rem 3rem; }
+  .admin-head h1 { font-size: 1.35rem; }
+}

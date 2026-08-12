@@ -1,16 +1,16 @@
 import PolicyLayout from '../components/PolicyLayout'
 
-// NOTE: Plain-English boilerplate draft. The site currently uses only
-// essential browser storage (local high-score for the Mogura mini-game).
-// If you add analytics later (Google Analytics, PostHog, etc.), update the
-// "Cookies we use" table and consider a consent banner.
+// NOTE: Plain-English boilerplate draft covering all three surfaces —
+// thefetch.in, feedback.thefetch.in and admin.thefetch.in. If analytics is
+// added later (Google Analytics, PostHog, etc.), update "What we use today"
+// and add a consent banner before any non-essential cookie is set.
 
 const CookiesPage = () => (
   <PolicyLayout
     title="Cookie Policy"
-    description="What cookies and similar browser storage thefetch.in uses today, and what would change if we add analytics in the future."
+    description="What cookies and similar browser storage Fetch uses across thefetch.in, the Pod feedback service and the internal dashboard, and how to control them."
     canonical="https://thefetch.in/cookies"
-    lastUpdated="2026-05-17"
+    lastUpdated="2026-08-12"
   >
     <section>
       <p>
@@ -35,27 +35,43 @@ const CookiesPage = () => (
     <section>
       <h2>What we use today</h2>
       <p>
-        Right now <strong>thefetch.in</strong> doesn't run any analytics or
-        advertising tracker. We use only <strong>essential</strong> browser
-        storage:
+        <strong>thefetch.in</strong> runs no analytics, advertising or
+        cross-site tracking technology. The only browser storage in use is
+        strictly necessary:
       </p>
       <ul>
         <li>
-          <strong>Mogura mini-game high-score</strong> — saved in your
-          browser's <em>localStorage</em> under <code>fetch.mogura.best</code>{' '}
-          so we can show your best score next time you play. It never leaves
-          your device.
+          <strong>Mogura mini-game high score</strong> — held in your browser's
+          <em> localStorage</em> under <code>fetch.mogura.best</code> so we can
+          show your best score next time. It never leaves your device.
         </li>
         <li>
-          <strong>Cloudflare security cookies</strong> — our host (Cloudflare)
-          may set short-lived cookies to defend the site against bots and
-          abuse. These are required for the site to load reliably and aren't
-          used for tracking.
+          <strong>Cloudflare security cookies</strong> — our infrastructure
+          provider may set short-lived cookies to protect the site against bots
+          and abuse. These are necessary for the site to load reliably and are
+          not used to track you.
+        </li>
+      </ul>
+
+      <h3>On our other services</h3>
+      <ul>
+        <li>
+          <strong>feedback.thefetch.in</strong> — the Pod feedback service sets
+          no cookies of its own. If the bot-protection challenge (Cloudflare
+          Turnstile) is enabled, it may set a short-lived token solely to
+          confirm the submission is not automated.
+        </li>
+        <li>
+          <strong>admin.thefetch.in</strong> — our internal dashboard sets a
+          single strictly necessary session cookie
+          (<code>fetch_admin_session</code>), marked HttpOnly, Secure and
+          SameSite=Lax, which identifies a signed-in member of staff for seven
+          days. It is not set for members of the public.
         </li>
       </ul>
       <p>
-        We don't set any cookies that identify you personally, and we don't
-        share cookie data with advertisers.
+        For the wider picture of what we collect and why, see our{' '}
+        <a href="/privacy">Privacy Policy</a>.
       </p>
     </section>
 

@@ -1,0 +1,46 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "fetch-feedback",
+  "main": "worker/index.js",
+  "compatibility_date": "2026-05-17",
+  "account_id": "0fd7a8982199882878b4a278d4ca01b5",
+
+  "assets": {
+    "directory": "./dist",
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application"
+  },
+
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "fetch-feedback",
+      "database_id": "38e16c5c-0041-42c5-b96d-44cbff519553"
+    }
+  ],
+
+  // Two custom domains served by one Worker:
+  //   feedback.thefetch.in — the public form (QR target)
+  //   admin.thefetch.in    — the dashboard, put behind Cloudflare Access
+  // The Worker refuses admin routes on the public host and vice versa.
+  "routes": [
+    { "pattern": "feedback.thefetch.in", "custom_domain": true },
+    { "pattern": "admin.thefetch.in", "custom_domain": true }
+  ],
+
+  "vars": {
+    "FORM_HOSTNAME": "feedback.thefetch.in",
+    "ADMIN_HOSTNAME": "admin.thefetch.in",
+
+    // Public Turnstile site key. Safe to commit — the *secret* is set with
+    //   npx wrangler secret put TURNSTILE_SECRET
+    "TURNSTILE_SITE_KEY": ""
+
+    // Admin auth is email + password stored in D1 (see worker/auth.js).
+    // Create logins with:  npm run admin:create -- you@thefetch.in
+  }
+
+  // Secrets (never in this file — use `wrangler secret put <NAME>`):
+  //   QR_SECRET         HMAC key that signs pod IDs in QR codes
+  //   TURNSTILE_SECRET  Turnstile server-side secret
+}

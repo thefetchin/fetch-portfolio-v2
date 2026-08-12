@@ -1,0 +1,52 @@
+/* Landing (no pod in the URL) */
+
+.landing {
+  min-height: 100dvh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+  background:
+    radial-gradient(70% 50% at 50% 0%, rgba(14, 165, 233, 0.10), transparent 60%),
+    var(--ink-50);
+}
+
+.landing-card {
+  max-width: 420px;
+  text-align: center;
+  background: var(--ink-0);
+  border: 1px solid var(--ink-100);
+  border-radius: var(--radius-lg);
+  padding: 2.5rem 2rem;
+  box-shadow: var(--shadow-md);
+}
+
+.landing-logo {
+  height: 38px;
+  width: auto;
+  margin: 0 auto 1.5rem;
+}
+
+.landing-card h1 {
+  font-size: 1.4rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  margin-bottom: 0.75rem;
+}
+
+.landing-card p {
+  color: var(--ink-500);
+  font-size: 0.97rem;
+  line-height: 1.65;
+}
+
+.landing-alt {
+  margin-top: 1.25rem;
+  padding-top: 1.25rem;
+  border-top: 1px solid var(--ink-100);
+  font-size: 0.9rem !important;
+}
+
+.landing-card a {
+  color: var(--brand-700);
+}
