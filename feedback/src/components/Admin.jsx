@@ -202,6 +202,11 @@ export default function Admin() {
 
   useEffect(() => { load() }, [load])
 
+  // NOTE: every hook must run on every render. Keep this above the
+  // `authed === false` early return below — putting a hook after a
+  // conditional return breaks the Rules of Hooks and blanks the page.
+  const rows = useMemo(() => data?.submissions || [], [data])
+
   const signOut = async () => {
     await fetch('/api/admin/logout', { method: 'POST' })
     setAuthed(false)
@@ -244,7 +249,6 @@ export default function Admin() {
   }
 
   const stats = data?.stats
-  const rows = useMemo(() => data?.submissions || [], [data])
 
   return (
     <main className="admin">
