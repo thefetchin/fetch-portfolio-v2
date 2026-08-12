@@ -116,8 +116,11 @@ Domain for the `fetch-feedback` Worker.
 Also add a second Access application covering path `api/admin` so the API
 can't be reached directly.
 
-> While `ACCESS_AUD` / `ACCESS_TEAM_DOMAIN` are blank the admin API is
-> **open**. Set them before the Worker holds real submissions.
+> The admin API is **fail-closed**: while `ACCESS_AUD` /
+> `ACCESS_TEAM_DOMAIN` are blank, `/api/admin/*` returns 401 on any real
+> hostname and only works from `localhost`. So a deploy that forgets Access
+> can't leak submissions — but the dashboard won't work either until you
+> set them.
 
 ## Printing QR codes
 
@@ -139,8 +142,15 @@ npx wrangler dev --local         # worker + D1 on :8787
 npm run dev                      # optional: Vite HMR on :5174, proxies /api
 ```
 
-Locally, `QR_SECRET` and the Access vars are unset, so signature checks and
-admin auth are skipped. Visit:
+Locally, `QR_SECRET` is unset so signature checks are skipped. The admin
+dashboard is **denied by default even locally** — to use it in dev, create
+`.dev.vars` (gitignored, never uploaded by `wrangler deploy`):
+
+```
+ALLOW_INSECURE_ADMIN="true"
+```
+
+Never set that as a production var. Visit:
 
 - `http://localhost:8787/p/POD-MNG-001` — the form
 - `http://localhost:8787/admin` — the dashboard

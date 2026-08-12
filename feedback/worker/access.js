@@ -10,8 +10,15 @@
  *   ACCESS_TEAM_DOMAIN — e.g. "aiumtech.cloudflareaccess.com"
  *   ACCESS_AUD         — the Application Audience tag from the Access app
  *
- * If either is unset we treat the deployment as local development and allow
- * the request, so `wrangler dev` works without an Access tunnel.
+ * FAIL-CLOSED: if those vars are missing, the request is denied — a deploy
+ * that forgot to configure Access can never expose customer contact details
+ * to the open internet.
+ *
+ * The single exception is local development, which must be opted into
+ * explicitly by putting ALLOW_INSECURE_ADMIN="true" in `.dev.vars` (which is
+ * gitignored and never uploaded by `wrangler deploy`). We deliberately do
+ * NOT sniff the hostname: `wrangler dev` serves the configured custom domain
+ * name locally, so hostname is not a reliable signal of environment.
  */
 
 const certCache = { keys: null, fetchedAt: 0 }
@@ -50,8 +57,16 @@ export async function verifyAccess(request, env) {
   const aud = env.ACCESS_AUD
 
   if (!teamDomain || !aud) {
-    // Local dev / not yet configured.
-    return { ok: true, email: 'dev@localhost', dev: true }
+    if (env.ALLOW_INSECURE_ADMIN === 'true') {
+      return { ok: true, email: 'dev@localhost', dev: true }
+    }
+    // Deployed, but Access was never configured. Deny rather than expose
+    // customer emails, phone numbers and payment references.
+    return {
+      ok: false,
+      reason:
+        'Admin access is not configured. Set ACCESS_TEAM_DOMAIN and ACCESS_AUD, then redeploy.',
+    }
   }
 
   const token =
