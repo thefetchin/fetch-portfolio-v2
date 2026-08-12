@@ -48,6 +48,16 @@
   color: var(--ink-700);
 }
 
+/* App.css hides every <section> until an IntersectionObserver adds
+   `.visible` — that's the homepage reveal-on-scroll effect. Legal pages are
+   plain prose with no observer, so without this override their entire body
+   renders at opacity 0 and the page looks blank. */
+.policy-body section {
+  opacity: 1;
+  transform: none;
+  transition: none;
+}
+
 .policy-body > section + section {
   margin-top: 2.5rem;
 }
