@@ -1,6 +1,9 @@
 import { validateSubmission } from './validate.js'
 import { verifySession, handleLogin, handleLogout } from './auth.js'
-import { SUBMISSION_STATUSES } from '../shared/constants.js'
+import {
+  validateDebitNote, allocateNumber, financialYear, istDateString,
+} from './invoicing.js'
+import { SUBMISSION_STATUSES, DEBIT_NOTE_STATUSES } from '../shared/constants.js'
 
 /* ------------------------------------------------------------------ utils */
 
@@ -401,6 +404,122 @@ async function handleAdminUpdate(request, env, id) {
   return json({ ok: true })
 }
 
+
+/* ------------------------------------------------ admin: debit notes ----- */
+
+async function handleDebitNoteCreate(request, env, actorEmail) {
+  let payload
+  try {
+    payload = await request.json()
+  } catch {
+    return json({ error: 'bad_json', message: 'Malformed request.' }, 400)
+  }
+
+  const result = validateDebitNote(payload)
+  if (!result.ok) {
+    return json({ error: 'validation', message: result.errors[0], errors: result.errors }, 422)
+  }
+  const v = result.value
+
+  const fy = financialYear()
+  const { seq, number } = await allocateNumber(env, 'DN', fy)
+  const id = crypto.randomUUID()
+  const noteDate = istDateString()
+
+  const statements = [
+    env.DB.prepare(
+      `INSERT INTO debit_notes (
+         id, note_number, fy, seq, note_date, created_by,
+         supplier_name, supplier_gstin, supplier_address, supplier_state,
+         reason, invoice_ref, invoice_date, notes,
+         is_interstate, taxable_paise, cgst_paise, sgst_paise, igst_paise,
+         round_off_paise, total_paise
+       ) VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15,?16,?17,?18,?19,?20,?21)`
+    ).bind(
+      id, number, fy, seq, noteDate, actorEmail,
+      v.supplier_name, v.supplier_gstin, v.supplier_address, v.supplier_state,
+      v.reason, v.invoice_ref, v.invoice_date, v.notes,
+      v.is_interstate, v.taxable_paise, v.cgst_paise, v.sgst_paise, v.igst_paise,
+      v.round_off_paise, v.total_paise
+    ),
+    ...v.lines.map((l) =>
+      env.DB.prepare(
+        `INSERT INTO debit_note_lines (
+           note_id, line_no, description, hsn, qty_milli, uom, rate_paise,
+           gst_bps, taxable_paise, cgst_paise, sgst_paise, igst_paise, total_paise
+         ) VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13)`
+      ).bind(
+        id, l.line_no, l.description, l.hsn, l.qty_milli, l.uom, l.rate_paise,
+        l.gst_bps, l.taxable_paise, l.cgst_paise, l.sgst_paise, l.igst_paise, l.total_paise
+      )
+    ),
+  ]
+
+  // One batch => header and lines commit together; a note can never exist
+  // without the lines that justify its total.
+  await env.DB.batch(statements)
+
+  return json({ ok: true, id, noteNumber: number })
+}
+
+async function handleDebitNoteList(request, env) {
+  const url = new URL(request.url)
+  const status = url.searchParams.get('status')
+  const where = []
+  const binds = []
+  if (status && DEBIT_NOTE_STATUSES.includes(status)) {
+    binds.push(status)
+    where.push(`status = ?${binds.length}`)
+  }
+
+  const rows = await env.DB.prepare(
+    `SELECT * FROM debit_notes
+     ${where.length ? `WHERE ${where.join(' AND ')}` : ''}
+     ORDER BY created_at DESC LIMIT 200`
+  ).bind(...binds).all()
+
+  const stats = await env.DB.prepare(
+    `SELECT COUNT(*) AS total,
+            SUM(CASE WHEN status = 'issued'  THEN 1 ELSE 0 END) AS open_count,
+            SUM(CASE WHEN status = 'issued'  THEN total_paise ELSE 0 END) AS open_paise,
+            SUM(CASE WHEN status = 'settled' THEN total_paise ELSE 0 END) AS settled_paise
+       FROM debit_notes`
+  ).first()
+
+  return json({ notes: rows.results || [], stats })
+}
+
+async function handleDebitNoteGet(request, env, id) {
+  const note = await env.DB.prepare('SELECT * FROM debit_notes WHERE id = ?1').bind(id).first()
+  if (!note) return json({ error: 'not_found', message: 'Debit note not found.' }, 404)
+
+  const lines = await env.DB.prepare(
+    'SELECT * FROM debit_note_lines WHERE note_id = ?1 ORDER BY line_no'
+  ).bind(id).all()
+
+  return json({ note, lines: lines.results || [] })
+}
+
+async function handleDebitNoteStatus(request, env, id) {
+  let body
+  try {
+    body = await request.json()
+  } catch {
+    return json({ error: 'bad_json' }, 400)
+  }
+  const status = DEBIT_NOTE_STATUSES.includes(body.status) ? body.status : null
+  if (!status) return json({ error: 'bad_status' }, 422)
+
+  await env.DB.prepare(
+    `UPDATE debit_notes
+        SET status = ?1,
+            settled_at = CASE WHEN ?1 = 'settled' THEN datetime('now') ELSE settled_at END
+      WHERE id = ?2`
+  ).bind(status, id).run()
+
+  return json({ ok: true, status })
+}
+
 /* ------------------------------------------------------------------ entry */
 
 export default {
@@ -448,6 +567,20 @@ export default {
         if (pathname === '/api/admin/pods' && request.method === 'POST') {
           return await handleAdminPodCreate(request, env)
         }
+        if (pathname === '/api/admin/debit-notes' && request.method === 'POST') {
+          return await handleDebitNoteCreate(request, env, auth.email)
+        }
+        if (pathname === '/api/admin/debit-notes' && request.method === 'GET') {
+          return await handleDebitNoteList(request, env)
+        }
+        const dnMatch = pathname.match(/^\/api\/admin\/debit-notes\/([\w-]+)$/)
+        if (dnMatch && request.method === 'GET') {
+          return await handleDebitNoteGet(request, env, dnMatch[1])
+        }
+        if (dnMatch && request.method === 'PATCH') {
+          return await handleDebitNoteStatus(request, env, dnMatch[1])
+        }
+
         const podMatch = pathname.match(/^\/api\/admin\/pods\/([A-Za-z0-9-]+)$/)
         if (podMatch && request.method === 'PATCH') {
           return await handleAdminPodToggle(request, env, podMatch[1].toUpperCase())

@@ -107,3 +107,79 @@ export const valuesOf = (options) => new Set(options.map((o) => o.value))
  * format records its own iteration count, so old and new hashes coexist.
  */
 export const PBKDF2_ITERATIONS = 25_000
+
+
+/* ------------------------------------------------------------ invoicing --
+ * Debit notes raised on suppliers for defective, short or wrongly supplied
+ * goods. Imported by the Worker (validation, totals) and the admin UI (form
+ * options), so the two can never disagree.
+ */
+
+/** Us. Appears on every document we issue. */
+export const ISSUER = {
+  legalName: 'AIUM Tech Private Limited',
+  tradeName: 'Fetch',
+  cin: 'U47990MN2025PTC015220',
+  gstin: '29ABBCA9450H1ZH',
+  stateCode: '29',
+  stateName: 'Karnataka',
+  // Place of business the goods are supplied to — drives CGST/SGST vs IGST.
+  address: [
+    'Lucia Mansion, Kalpane Kulshekara',
+    'Mangalore 575005, Karnataka',
+  ],
+  registeredOffice: [
+    'Nagamapal Khwai Brahmapur, Lalambung (Part),',
+    'Imphal West, Lamphelpat, Manipur 795004',
+  ],
+  email: 'thefetch.in@gmail.com',
+  phone: '+91 90195 26185',
+}
+
+export const DEBIT_NOTE_REASONS = [
+  { value: 'damaged',      label: 'Damaged in transit' },
+  { value: 'expired',      label: 'Expired or near expiry' },
+  { value: 'quality',      label: 'Quality not acceptable' },
+  { value: 'wrong_item',   label: 'Wrong item supplied' },
+  { value: 'short_supply', label: 'Short supply' },
+  { value: 'price_diff',   label: 'Price difference' },
+  { value: 'other',        label: 'Other' },
+]
+
+/** GST rates as basis points so all tax maths stays in integers. */
+export const GST_RATES = [
+  { value: 0,    label: '0%' },
+  { value: 500,  label: '5%' },
+  { value: 1200, label: '12%' },
+  { value: 1800, label: '18%' },
+  { value: 2800, label: '28%' },
+]
+
+export const UOM_OPTIONS = [
+  { value: 'pcs',  label: 'pcs' },
+  { value: 'box',  label: 'box' },
+  { value: 'case', label: 'case' },
+  { value: 'pack', label: 'pack' },
+  { value: 'kg',   label: 'kg' },
+  { value: 'g',    label: 'g' },
+  { value: 'l',    label: 'l' },
+  { value: 'ml',   label: 'ml' },
+]
+
+export const DEBIT_NOTE_STATUSES = ['issued', 'settled', 'cancelled']
+
+export const DN_LIMITS = {
+  supplierName: 140,
+  supplierAddress: 300,
+  gstin: 15,
+  invoiceRef: 40,
+  description: 160,
+  hsn: 8,
+  notes: 600,
+  maxLines: 30,
+  /** Rs 50,00,000 in paise — a debit note above this wants a human check. */
+  maxLineValuePaise: 500_000_000,
+}
+
+/** 15-char GSTIN: 2 state digits, 10-char PAN, entity, Z, checksum. */
+export const GSTIN_RE = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/

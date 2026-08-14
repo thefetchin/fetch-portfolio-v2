@@ -8,6 +8,7 @@ import {
   SUBMISSION_STATUSES,
 } from '../../shared/constants.js'
 import Pods from './Pods'
+import DebitNotes from './DebitNotes'
 import './Admin.css'
 
 const labelMap = (options) =>
@@ -285,9 +286,19 @@ export default function Admin() {
         >
           Pods &amp; QR codes
         </button>
+        <button
+          type="button" role="tab"
+          aria-selected={view === 'invoicing'}
+          className={`admin-tab ${view === 'invoicing' ? 'is-active' : ''}`}
+          onClick={() => setView('invoicing')}
+        >
+          Invoicing
+        </button>
       </div>
 
       {view === 'pods' && <Pods />}
+
+      {view === 'invoicing' && <DebitNotes />}
 
       {view === 'submissions' && stats && (
         <div className="stats">
