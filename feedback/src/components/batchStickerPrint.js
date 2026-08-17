@@ -52,6 +52,10 @@ const qty = (milli) => {
 /* ------------------------------------------------------------------ CSS ---- */
 
 const SHARED_CSS = `
+  /* A printed document paints its own ground: without an explicit
+     background and color-scheme it inherits the viewer's dark theme and
+     previews as black on black. */
+  :root { color-scheme: light; }
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body {
     font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;

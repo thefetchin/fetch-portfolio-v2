@@ -159,13 +159,23 @@
 /* ---------------------------------------------------------------- tabs -- */
 
 .admin-tabs {
-  display: inline-flex;
+  display: flex;
+  width: fit-content;
+  max-width: 100%;
   gap: 0.25rem;
   padding: 0.3rem;
   margin-bottom: 1.25rem;
   background: var(--ink-100);
   border-radius: var(--radius-md);
+  /* Four labels do not fit a phone. Scroll the strip rather than let it clip
+     off the side of the viewport, which would hide a whole tab with no hint
+     that it was there. */
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
 }
+
+.admin-tabs::-webkit-scrollbar { display: none; }
 
 .admin-tab {
   appearance: none;

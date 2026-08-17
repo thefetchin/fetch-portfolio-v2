@@ -59,10 +59,15 @@ export function printDebitNote(note, lines) {
 <html lang="en"><head><meta charset="utf-8">
 <title>${esc(note.note_number)} — Debit Note</title>
 <style>
+  /* A printed document paints its own ground: without an explicit
+     background and color-scheme it inherits the viewer's dark theme and
+     previews as black on black. */
+  :root { color-scheme: light; }
   * { box-sizing: border-box; }
   body {
     font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
-    color: #111; margin: 0; padding: 28px 30px; font-size: 12px; line-height: 1.45;
+    color: #111; background: #fff;
+    margin: 0; padding: 28px 30px; font-size: 12px; line-height: 1.45;
   }
   .doc { max-width: 780px; margin: 0 auto; }
   .title-bar {
