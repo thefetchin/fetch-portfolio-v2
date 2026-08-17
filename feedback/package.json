@@ -13,6 +13,12 @@
     "db:remote": "wrangler d1 execute fetch-feedback --remote --file=./schema.sql",
     "qr": "node scripts/generate-qr.mjs",
     "admin:create": "node scripts/create-admin.mjs",
+    "test": "npm run test:unit && npm run test:ledger",
+    "test:unit": "node tests/inventory-unit.mjs",
+    "//test:ledger": "Hits the LOCAL D1 and wipes the ledger. Stop `wrangler dev` first — both want a write lock on the same SQLite file.",
+    "test:ledger": "bash tests/ledger-invariants.sh",
+    "db:inventory": "wrangler d1 execute fetch-feedback --remote --file=./migrations/004_inventory.sql",
+    "db:inventory:local": "wrangler d1 execute fetch-feedback --local --file=./migrations/004_inventory.sql",
     "db:auth": "wrangler d1 execute fetch-feedback --remote --file=./migrations/002_admin_auth.sql"
   },
   "dependencies": {

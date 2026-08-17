@@ -83,6 +83,20 @@ echo "── invariant 3: no real location goes negative ───────�
 expect_abort "over-pick 500 units when MAIN holds 204" "CHECK constraint failed: qty_milli >= floor_milli" \
   "$(leg2 ref-bad1 pick WH-MLR/MAIN WH-MLR/STAGE btc_good 500000)"
 
+# The assertion that catches the design this replaced. A conditional
+# `UPDATE ... WHERE qty >= n` plus a changes() check would COMMIT the batch and
+# leave the movement rows behind with the balance unmoved -- which is precisely
+# the drift the ledger exists to prevent. Breaching the CHECK rolls the whole
+# batch back instead, so the loser leaves nothing at all.
+orphans=$(npx wrangler d1 execute fetch-feedback --local --json --command \
+  "SELECT COUNT(*) AS n FROM stock_movements WHERE ref_id = 'ref-bad1';" 2>/dev/null \
+  | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>console.log(JSON.parse(s)[0].results[0].n))')
+if [ "$orphans" = "0" ]; then
+  echo "  ok    the refused over-pick left no movement rows behind"; PASS=$((PASS+1))
+else
+  echo "  FAIL  the refused over-pick left $orphans orphan movement row(s)"; FAIL=$((FAIL+1))
+fi
+
 echo
 echo "── invariant 4: expiry gates ──────────────────────────────────────────"
 expect_ok    "expired batch may be RECEIVED" \
