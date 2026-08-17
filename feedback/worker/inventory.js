@@ -158,21 +158,65 @@ export function classifyD1Error(err) {
     }
   }
 
-  if (m.includes('UNIQUE constraint failed: purchase_bills.grn_number')
-      || m.includes('idx_pb_supplier_billno')) {
+  // Uniqueness. Each of these is a person entering something that already
+  // exists, so every one needs a sentence naming what to change -- a bare 500
+  // saying "something went wrong on our side" is both unhelpful and untrue.
+  if (m.includes('idx_pb_supplier_billno')
+      || m.includes('UNIQUE constraint failed: purchase_bills.supplier_id')) {
     return {
       status: 409,
       error: 'duplicate_bill',
       message: 'That supplier bill number has already been booked.',
     }
   }
+  if (m.includes('UNIQUE constraint failed: purchase_bills.grn_number')) {
+    return { status: 409, error: 'duplicate_grn', message: 'That GRN number is already in use. Try again.' }
+  }
   if (m.includes('UNIQUE constraint failed: batches.batch_code')) {
+    return { status: 409, error: 'duplicate_batch', message: 'That batch code already exists. Try again.' }
+  }
+  if (m.includes('suppliers.gstin') && m.includes('UNIQUE')) {
     return {
       status: 409,
-      error: 'duplicate_batch',
-      message: 'That batch code already exists. Try again.',
+      error: 'duplicate_supplier',
+      message: 'A supplier with that GSTIN already exists.',
     }
   }
+  if (m.includes('products.sku') && m.includes('UNIQUE')) {
+    return { status: 409, error: 'duplicate_sku', message: 'That SKU is already in use.' }
+  }
+  if (m.includes('products.barcode') && m.includes('UNIQUE')) {
+    return { status: 409, error: 'duplicate_barcode', message: 'That barcode is already on another product.' }
+  }
+  if (m.includes('pod_slot_layers') && m.includes('UNIQUE')) {
+    return {
+      status: 409,
+      error: 'layer_conflict',
+      message: 'That slot layer already exists. Reload the slot map and try again.',
+    }
+  }
+  // Anything else unique: still a 409 rather than a 500, because it is the
+  // caller's input that clashed, not our server that broke.
+  if (m.includes('UNIQUE constraint failed')) {
+    const col = m.match(/UNIQUE constraint failed: ([\w.,\s]+)/)?.[1]?.trim()
+    return {
+      status: 409,
+      error: 'duplicate',
+      message: col
+        ? `That value is already used (${col}). Change it and try again.`
+        : 'That value is already used. Change it and try again.',
+    }
+  }
+
+  if (m.includes('NOT NULL constraint failed')) {
+    const col = m.match(/NOT NULL constraint failed: ([\w.]+)/)?.[1]
+    return {
+      status: 422,
+      error: 'missing_field',
+      message: col ? `A required value is missing (${col}).` : 'A required value is missing.',
+    }
+  }
+
   if (m.includes('FOREIGN KEY constraint failed')) {
     return {
       status: 422,

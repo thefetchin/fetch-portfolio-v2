@@ -4,6 +4,8 @@ import {
   validateDebitNote, financialYear, istDateString,
   counterBumpStatement, DOC_NUMBER_SQL,
 } from './invoicing.js'
+import { beginIdempotent, maybePrune } from './idempotency.js'
+import { routeInventory } from './inv-routes.js'
 import { SUBMISSION_STATUSES, DEBIT_NOTE_STATUSES } from '../shared/constants.js'
 
 /* ------------------------------------------------------------------ utils */
@@ -615,6 +617,48 @@ export default {
           return await handleAdminUpdate(request, env, updateMatch[1])
         }
         return json({ error: 'not_found' }, 404)
+      }
+
+      // ---- inventory API — same host as the dashboard, but a SIBLING of
+      // /api/admin/* rather than nested inside it.
+      //
+      // The reason is fail-closed by construction. /api/admin/* carries one
+      // blanket admin-only gate, so a route added there in future is protected
+      // by default. Inventory has to be reachable by an inventory_manager and,
+      // read-only, by a refiller's device, so nesting it would mean cutting a
+      // hole in that gate -- and the next person to add an admin route below
+      // the hole would be one forgotten check away from exposing customer
+      // complaints to a phone in a car park. Here each route states its roles,
+      // and a forgotten check exposes a stock read: the low-consequence
+      // direction.
+      //
+      // No CORS headers, deliberately. Native mobile clients do not preflight,
+      // and opening CORS on a cookie-authenticated surface would be a genuine
+      // CSRF regression for the dashboard.
+      if (pathname.startsWith('/api/inv/')) {
+        if (!isAdminHost) return json({ error: 'not_found' }, 404)
+
+        const auth = await verifySession(request, env)
+        if (!auth.ok) return json({ error: 'unauthorized', message: auth.reason }, 401)
+
+        let idem = null
+        if (request.method !== 'GET') {
+          const claim = await beginIdempotent(request, env, auth, json)
+          if (claim.replay) return claim.replay
+          if (claim.error) return json(claim.error, claim.status)
+          idem = claim
+          ctx.waitUntil(Promise.resolve(maybePrune(env)).catch(() => {}))
+        }
+
+        try {
+          return await routeInventory(request, env, auth, idem, json)
+        } catch (err) {
+          // An unhandled fault must not leave the key claimed: the caller would
+          // then be permanently unable to retry that action, and a client queue
+          // would jam on it for the whole retention window.
+          if (idem) await idem.abandon().catch(() => {})
+          throw err
+        }
       }
 
       // ---- public API — only on the form host
