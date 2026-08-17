@@ -1,9 +1,18 @@
 import {
   CONTRA_LOCATIONS,
   INV_LIMITS,
+  RUN_STATUSES,
   STOCK_ROLES,
   WAREHOUSE_ZONES,
 } from '../shared/constants.js'
+import { cleanText } from './validate.js'
+import {
+  cancelStatements,
+  createRun,
+  dispatchStatements,
+  pickStatements,
+  runDetail,
+} from './inv-outward.js'
 import { requireRole } from './auth.js'
 import {
   DOC_NUMBER_SQL,
@@ -798,6 +807,164 @@ export async function routeInventory(request, env, auth, idem, json) {
     return createWriteOff(env, idem, actor, json)
   }
 
+  // ---- outward: plan, pick, dispatch -------------------------------------
+  if (path === '/api/inv/runs' && method === 'GET') {
+    // A refiller sees only their own runs, enforced server-side regardless of
+    // any query parameter they send.
+    return listRuns(request, env, auth, json)
+  }
+  if (path === '/api/inv/runs' && method === 'POST') {
+    const d = stockOnly(); if (d) { await idem.abandon(); return json(d, 403) }
+    return handleCreateRun(env, idem, actor, json)
+  }
+
+  const runMatch = path.match(/^\/api\/inv\/runs\/([\w:-]+)$/)
+  if (runMatch && method === 'GET') {
+    return handleRunDetail(env, auth, runMatch[1], json)
+  }
+
+  const actionMatch = path.match(/^\/api\/inv\/runs\/([\w:-]+)\/(pick|dispatch|cancel)$/)
+  if (actionMatch && method === 'POST') {
+    const d = stockOnly(); if (d) { await idem.abandon(); return json(d, 403) }
+    return handleRunAction(env, idem, actor, actionMatch[1], actionMatch[2], json)
+  }
+
   if (idem?.abandon) await idem.abandon()
   return json({ error: 'not_found' }, 404)
 }
+
+/* ============================================================ outward ===== */
+
+async function listRuns(request, env, auth, json) {
+  const url = new URL(request.url)
+  const status = url.searchParams.get('status')
+  const date = url.searchParams.get('date')
+
+  const where = []
+  const binds = []
+  // Refillers are scoped to their own runs no matter what they ask for.
+  if (!STOCK_ROLES.includes(auth.role)) {
+    binds.push(auth.userId)
+    where.push(`r.assigned_user_id = ?${binds.length}`)
+  }
+  if (status && RUN_STATUSES.includes(status)) {
+    binds.push(status); where.push(`r.status = ?${binds.length}`)
+  }
+  if (date && /^\d{4}-\d{2}-\d{2}$/.test(date)) {
+    binds.push(date); where.push(`r.run_date = ?${binds.length}`)
+  }
+
+  const rows = await env.DB.prepare(
+    `SELECT r.run_id, r.run_number, r.run_date, r.status, r.dispatched_at,
+            u.email AS assigned_email, u.display_name AS assigned_name,
+            (SELECT COUNT(*) FROM refill_run_stops s WHERE s.run_id = r.run_id) AS stops,
+            (SELECT COALESCE(SUM(l.planned_milli),0) FROM refill_plan_lines l WHERE l.run_id = r.run_id) AS planned_milli,
+            (SELECT COUNT(*) FROM pull_tasks t WHERE t.run_id = r.run_id AND t.status IN ('open','assigned')) AS pulls
+       FROM refill_runs r
+       LEFT JOIN admin_users u ON u.id = r.assigned_user_id
+      ${where.length ? `WHERE ${where.join(' AND ')}` : ''}
+      ORDER BY r.run_date DESC, r.created_at DESC
+      LIMIT 50`
+  ).bind(...binds).all()
+
+  return json({
+    runs: (rows.results || []).map((r) => ({
+      id: r.run_id,
+      runNumber: r.run_number,
+      runDate: r.run_date,
+      status: r.status,
+      dispatchedAt: r.dispatched_at,
+      assignedTo: r.assigned_email
+        ? { email: r.assigned_email, name: r.assigned_name } : null,
+      stops: r.stops,
+      plannedMilli: r.planned_milli,
+      openPulls: r.pulls,
+    })),
+  })
+}
+
+async function handleRunDetail(env, auth, runId, json) {
+  const detail = await runDetail(env, runId)
+  if (!detail) return json({ error: 'not_found', message: 'No such run.' }, 404)
+
+  // A refiller may only open a run assigned to them.
+  if (!STOCK_ROLES.includes(auth.role)
+      && detail.run.assignedTo?.userId !== auth.userId) {
+    return json({ error: 'forbidden', message: 'That run is not assigned to you.' }, 403)
+  }
+  return json(detail)
+}
+
+async function handleCreateRun(env, idem, actor, json) {
+  const built = await createRun(env, idem, actor, json, validationError)
+  // createRun returns a Response directly when validation failed.
+  if (built instanceof Response) return built
+
+  const failed = await runBatch(env, built.statements)
+  if (failed) {
+    await idem.abandon()
+    return json({ error: failed.error, message: failed.message }, failed.status)
+  }
+
+  const saved = await env.DB.prepare(
+    'SELECT run_number FROM refill_runs WHERE run_id = ?1'
+  ).bind(built.runId).first()
+
+  return idem.finish({
+    ok: true,
+    id: built.runId,
+    runNumber: saved?.run_number,
+    lines: built.lines.length,
+    bags: new Set([...built.bagNo.values()]).size,
+  })
+}
+
+/**
+ * pick / dispatch / cancel.
+ *
+ * Each transition is guarded on the run's current status inside the UPDATE, and
+ * the handler checks `changes` afterwards -- so replaying a dispatch on an
+ * already-dispatched run is a clean 409 rather than a second set of movements.
+ */
+async function handleRunAction(env, idem, actor, runId, action, json) {
+  const run = await env.DB.prepare(
+    'SELECT run_id, status, transit_location_id FROM refill_runs WHERE run_id = ?1'
+  ).bind(runId).first()
+  if (!run) { await idem.abandon(); return json({ error: 'not_found', message: 'No such run.' }, 404) }
+
+  const expected = { pick: 'planned', dispatch: 'picked', cancel: null }[action]
+  if (expected && run.status !== expected) {
+    await idem.abandon()
+    return json({
+      error: 'wrong_state',
+      message: `This run is ${run.status}; ${action} needs it to be ${expected}.`,
+    }, 409)
+  }
+  if (action === 'cancel' && !['planned', 'picked', 'dispatched'].includes(run.status)) {
+    await idem.abandon()
+    return json({ error: 'wrong_state', message: `A ${run.status} run cannot be cancelled.` }, 409)
+  }
+
+  let built
+  if (action === 'pick') built = await pickStatements(env, run, actor)
+  else if (action === 'dispatch') built = await dispatchStatements(env, run, actor)
+  else built = await cancelStatements(env, run, actor, cleanText(idem.body?.reason, INV_LIMITS.reason))
+
+  if (!built.statements.length) {
+    await idem.abandon()
+    return json({ error: 'nothing_to_do', message: 'This run has no lines.' }, 422)
+  }
+
+  const failed = await runBatch(env, built.statements)
+  if (failed) {
+    await idem.abandon()
+    return json({ error: failed.error, message: failed.message }, failed.status)
+  }
+
+  const after = await env.DB.prepare(
+    'SELECT status FROM refill_runs WHERE run_id = ?1'
+  ).bind(runId).first()
+
+  return idem.finish({ ok: true, id: runId, status: after?.status, batches: built.batchCount ?? null })
+}
+

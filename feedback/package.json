@@ -20,7 +20,10 @@
     "db:inventory": "wrangler d1 execute fetch-feedback --remote --file=./migrations/004_inventory.sql",
     "db:inventory:local": "wrangler d1 execute fetch-feedback --local --file=./migrations/004_inventory.sql",
     "db:auth": "wrangler d1 execute fetch-feedback --remote --file=./migrations/002_admin_auth.sql",
-    "test:vlite": "node tests/vlite-unit.mjs"
+    "test:vlite": "node tests/vlite-unit.mjs",
+    "//test:api": "Needs `wrangler dev --port 8810` running. test:conc stops it at the end.",
+    "test:api": "bash tests/inward-api.sh && bash tests/outward-api.sh",
+    "test:conc": "bash tests/concurrency-api.sh"
   },
   "dependencies": {
     "react": "^18.2.0",
