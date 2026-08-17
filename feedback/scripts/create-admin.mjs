@@ -21,13 +21,46 @@ import { stdin, stdout } from 'node:process'
 import { PBKDF2_ITERATIONS } from '../shared/constants.js'
 
 const MIN_PASSWORD_LENGTH = 12
+const ROLES = ['admin', 'inventory_manager', 'refiller']
 
 const args = process.argv.slice(2)
 const local = args.includes('--local')
 const email = (args.find((a) => !a.startsWith('--')) || '').trim().toLowerCase()
 
+/** Value of a `--flag value` pair. */
+const flagValue = (name) => {
+  const i = args.indexOf(`--${name}`)
+  return i >= 0 && args[i + 1] && !args[i + 1].startsWith('--') ? args[i + 1] : null
+}
+
+const role = flagValue('role') || 'admin'
+const displayName = (flagValue('name') || '').trim()
+
+/**
+ * Escapes a value for a single-quoted SQL literal.
+ *
+ * wrangler d1 execute takes a SQL string, so every interpolated value has to be
+ * escaped here -- there is no bind-parameter path through the CLI. Doubling the
+ * quote is the SQLite-correct escape; control characters are dropped because
+ * they have no business in a name and would corrupt the command line.
+ */
+const sqlLit = (v) =>
+  `'${String(v).replace(/[\u0000-\u001F\u007F]/g, '').replace(/'/g, "''")}'`
+
+const usage =
+  '\n  Usage: npm run admin:create -- you@thefetch.in [--role admin|inventory_manager|refiller]' +
+  '\n                                [--name "Ramesh K"] [--local]\n'
+
 if (!email || !/^[^\s@]+@[^\s@]+\.[a-z]{2,}$/i.test(email)) {
-  console.error('\n  Usage: npm run admin:create -- you@thefetch.in [--local]\n')
+  console.error(usage)
+  process.exit(1)
+}
+if (!ROLES.includes(role)) {
+  console.error(`\n  ✗ Unknown role "${role}". Use one of: ${ROLES.join(', ')}\n`)
+  process.exit(1)
+}
+if (displayName && displayName.length > 60) {
+  console.error('\n  ✗ --name must be 60 characters or fewer.\n')
   process.exit(1)
 }
 
@@ -78,10 +111,18 @@ const main = async () => {
 
   const passwordHash = hashPassword(password)
 
-  // Upsert: re-running for an existing email rotates that user's password.
+  // Upsert: re-running for an existing email rotates that user's password and
+  // updates the role. Every value goes through sqlLit() -- the role is also
+  // allowlisted above, and display_name is free text from the command line.
   const sql =
-    `INSERT INTO admin_users (email, password_hash) VALUES ('${email}', '${passwordHash}') ` +
-    `ON CONFLICT(email) DO UPDATE SET password_hash = excluded.password_hash, active = 1;`
+    `INSERT INTO admin_users (email, password_hash, role, display_name) ` +
+    `VALUES (${sqlLit(email)}, ${sqlLit(passwordHash)}, ${sqlLit(role)}, ` +
+    `${displayName ? sqlLit(displayName) : 'NULL'}) ` +
+    `ON CONFLICT(email) DO UPDATE SET ` +
+    `password_hash = excluded.password_hash, ` +
+    `role = excluded.role, ` +
+    `display_name = COALESCE(excluded.display_name, admin_users.display_name), ` +
+    `active = 1;`
 
   const flags = ['d1', 'execute', 'fetch-feedback', local ? '--local' : '--remote', '--command', sql]
   console.log(`\n  Writing to ${local ? 'local' : 'remote'} D1…`)
@@ -95,11 +136,16 @@ const main = async () => {
     process.exit(1)
   }
 
-  console.log(`\n  ✓ ${email} can now sign in at https://admin.thefetch.in\n`)
-  // Invalidate any existing sessions for safety when a password is rotated.
+  const where = role === 'refiller'
+    ? 'can now be used by the refiller app'
+    : 'can now sign in at https://admin.thefetch.in'
+  console.log(`\n  ✓ ${email} (${role}) ${where}\n`)
+
+  // Invalidate any existing sessions for safety when a password or role
+  // changes -- a session created under the old role must not outlive it.
   spawnSync('npx', [
     'wrangler', 'd1', 'execute', 'fetch-feedback', local ? '--local' : '--remote', '--command',
-    `DELETE FROM admin_sessions WHERE user_id IN (SELECT id FROM admin_users WHERE email = '${email}');`,
+    `DELETE FROM admin_sessions WHERE user_id IN (SELECT id FROM admin_users WHERE email = ${sqlLit(email)});`,
   ], { stdio: 'ignore' })
 }
 

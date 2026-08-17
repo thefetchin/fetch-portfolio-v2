@@ -46,13 +46,13 @@ export function financialYear(d = istNow()) {
 /* ------------------------------------------------------------ numbering -- */
 
 /**
- * Allocates the next number in a series atomically.
+ * Allocates the next raw sequence number in a series atomically.
  *
  * The upsert returns the row's new last_no in both branches: a fresh insert
  * yields 1, a conflict yields the incremented value. There is therefore no
- * read-then-write race, and debit_notes.note_number is UNIQUE as a backstop.
+ * read-then-write race.
  */
-export async function allocateNumber(env, series, fy) {
+export async function nextCounter(env, series, fy) {
   const row = await env.DB.prepare(
     `INSERT INTO document_counters (series, fy, last_no) VALUES (?1, ?2, 1)
      ON CONFLICT(series, fy) DO UPDATE SET last_no = last_no + 1
@@ -61,9 +61,48 @@ export async function allocateNumber(env, series, fy) {
 
   const seq = row?.last_no
   if (!Number.isInteger(seq) || seq < 1) throw new Error('Number allocation failed')
-
-  return { seq, number: `FETCH/${series}/${fy}/${String(seq).padStart(4, '0')}` }
+  return seq
 }
+
+/** Formats a sequence number as a document number: FETCH/DN/2026-27/0001. */
+export function documentNumber(series, fy, seq) {
+  return `FETCH/${series}/${fy}/${String(seq).padStart(4, '0')}`
+}
+
+/**
+ * Allocates a formatted document number in its own round trip.
+ *
+ * Prefer counterBumpStatement() inside a batch where the number is being
+ * written to a table -- this variant burns the sequence number if whatever
+ * follows it fails. It remains for callers that only need a number.
+ */
+export async function allocateNumber(env, series, fy) {
+  const seq = await nextCounter(env, series, fy)
+  return { seq, number: documentNumber(series, fy, seq) }
+}
+
+/**
+ * Counter bump as a statement, for use as the FIRST entry of an env.DB.batch().
+ *
+ * A later statement in the same batch derives its document number from
+ * document_counters (see DOC_NUMBER_SQL), reading this statement's own write.
+ * Because the whole batch is one transaction, a failing insert rolls the
+ * counter back with it -- so a rejected document leaves no gap in the series.
+ * That matters for GST-facing documents, where gaps invite questions.
+ */
+export function counterBumpStatement(env, series, fy) {
+  return env.DB.prepare(
+    `INSERT INTO document_counters (series, fy, last_no) VALUES (?1, ?2, 1)
+     ON CONFLICT(series, fy) DO UPDATE SET last_no = last_no + 1`
+  ).bind(series, fy)
+}
+
+/**
+ * SQL producing the formatted document number for a counter row aliased `c`.
+ * Mirrors documentNumber() above; keep the two in step.
+ */
+export const DOC_NUMBER_SQL =
+  `('FETCH/' || c.series || '/' || c.fy || '/' || printf('%04d', c.last_no))`
 
 /* ---------------------------------------------------------------- maths -- */
 

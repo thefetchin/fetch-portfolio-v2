@@ -1,7 +1,8 @@
 import { validateSubmission } from './validate.js'
-import { verifySession, handleLogin, handleLogout } from './auth.js'
+import { verifySession, handleLogin, handleLogout, requireRole } from './auth.js'
 import {
-  validateDebitNote, allocateNumber, financialYear, istDateString,
+  validateDebitNote, financialYear, istDateString,
+  counterBumpStatement, DOC_NUMBER_SQL,
 } from './invoicing.js'
 import { SUBMISSION_STATUSES, DEBIT_NOTE_STATUSES } from '../shared/constants.js'
 
@@ -422,11 +423,14 @@ async function handleDebitNoteCreate(request, env, actorEmail) {
   const v = result.value
 
   const fy = financialYear()
-  const { seq, number } = await allocateNumber(env, 'DN', fy)
   const id = crypto.randomUUID()
   const noteDate = istDateString()
 
   const statements = [
+    // The counter bump is part of the batch, so if anything below fails the
+    // sequence number is rolled back with it rather than left burnt.
+    counterBumpStatement(env, 'DN', fy),
+
     env.DB.prepare(
       `INSERT INTO debit_notes (
          id, note_number, fy, seq, note_date, created_by,
@@ -434,9 +438,13 @@ async function handleDebitNoteCreate(request, env, actorEmail) {
          reason, invoice_ref, invoice_date, notes,
          is_interstate, taxable_paise, cgst_paise, sgst_paise, igst_paise,
          round_off_paise, total_paise
-       ) VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15,?16,?17,?18,?19,?20,?21)`
+       )
+       SELECT ?1, ${DOC_NUMBER_SQL}, ?2, c.last_no, ?3, ?4,
+              ?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15,?16,?17,?18,?19
+         FROM document_counters c
+        WHERE c.series = 'DN' AND c.fy = ?2`
     ).bind(
-      id, number, fy, seq, noteDate, actorEmail,
+      id, fy, noteDate, actorEmail,
       v.supplier_name, v.supplier_gstin, v.supplier_address, v.supplier_state,
       v.reason, v.invoice_ref, v.invoice_date, v.notes,
       v.is_interstate, v.taxable_paise, v.cgst_paise, v.sgst_paise, v.igst_paise,
@@ -455,11 +463,17 @@ async function handleDebitNoteCreate(request, env, actorEmail) {
     ),
   ]
 
-  // One batch => header and lines commit together; a note can never exist
-  // without the lines that justify its total.
+  // One batch => counter, header and lines commit together; a note can never
+  // exist without the lines that justify its total.
   await env.DB.batch(statements)
 
-  return json({ ok: true, id, noteNumber: number })
+  // The number was computed inside the batch, so read back what was stored
+  // rather than recomputing it here and risking the two disagreeing.
+  const saved = await env.DB.prepare(
+    'SELECT note_number FROM debit_notes WHERE id = ?1'
+  ).bind(id).first()
+
+  return json({ ok: true, id, noteNumber: saved?.note_number })
 }
 
 async function handleDebitNoteList(request, env) {
@@ -553,10 +567,21 @@ export default {
         const auth = await verifySession(request, env)
         if (!auth.ok) return json({ error: 'unauthorized', message: auth.reason }, 401)
 
-        // Lets the dashboard show who's signed in.
+        // Lets any signed-in client show who it is and what it may do. This is
+        // the one route below the session gate that is open to every role.
         if (pathname === '/api/admin/me' && request.method === 'GET') {
-          return json({ email: auth.email })
+          return json({ email: auth.email, role: auth.role, userId: auth.userId })
         }
+
+        // Everything past this line is ADMIN ONLY.
+        //
+        // One gate rather than a check per handler, deliberately: it means a
+        // route added here in future is admin-only by default, and forgetting
+        // a check cannot expose customer complaints or GST documents to a
+        // refiller's phone. Inventory lives under /api/inv/* precisely so that
+        // non-admin roles never need a hole in this gate.
+        const denied = requireRole(auth, 'admin')
+        if (denied) return json(denied, 403)
 
         if (pathname === '/api/admin/submissions' && request.method === 'GET') {
           return await handleAdminSubmissions(request, env)
