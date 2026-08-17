@@ -13,6 +13,7 @@ import {
   pickStatements,
   runDetail,
 } from './inv-outward.js'
+import { importVliteProducts, listVliteCatalogue } from './inv-catalogue.js'
 import { requireRole } from './auth.js'
 import {
   DOC_NUMBER_SQL,
@@ -766,6 +767,19 @@ export async function routeInventory(request, env, auth, idem, json) {
 
   if (path === '/api/inv/zones' && method === 'GET') {
     return json({ zones: WAREHOUSE_ZONES })
+  }
+
+  // ---- the VLite catalogue as a product source --------------------------
+  // The machines already vend from a catalogue held upstream, so retyping it
+  // here would guarantee the two drift. Only identity and pricing come across;
+  // batch, expiry, quantity and cost stay ours.
+  if (path === '/api/inv/vlite/products' && method === 'GET') {
+    const d = stockOnly(); if (d) return json(d, 403)
+    return listVliteCatalogue(env, json)
+  }
+  if (path === '/api/inv/vlite/products/import' && method === 'POST') {
+    const d = stockOnly(); if (d) { await idem.abandon(); return json(d, 403) }
+    return importVliteProducts(env, idem, actor, json, validationError, shortId)
   }
 
   // ---- inward ------------------------------------------------------------

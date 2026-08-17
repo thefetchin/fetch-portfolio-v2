@@ -13,7 +13,7 @@
     "db:remote": "wrangler d1 execute fetch-feedback --remote --file=./schema.sql",
     "qr": "node scripts/generate-qr.mjs",
     "admin:create": "node scripts/create-admin.mjs",
-    "test": "npm run test:unit && npm run test:vlite && npm run test:ledger",
+    "test": "npm run test:unit && npm run test:vlite && npm run test:catalogue && npm run test:ledger",
     "test:unit": "node tests/inventory-unit.mjs",
     "//test:ledger": "Hits the LOCAL D1 and wipes the ledger. Stop `wrangler dev` first \u2014 both want a write lock on the same SQLite file.",
     "test:ledger": "bash tests/ledger-invariants.sh",
@@ -23,7 +23,8 @@
     "test:vlite": "node tests/vlite-unit.mjs",
     "//test:api": "Needs `wrangler dev --port 8810` running. test:conc stops it at the end.",
     "test:api": "bash tests/inward-api.sh && bash tests/outward-api.sh",
-    "test:conc": "bash tests/concurrency-api.sh"
+    "test:conc": "bash tests/concurrency-api.sh",
+    "test:catalogue": "node tests/catalogue-unit.mjs"
   },
   "dependencies": {
     "react": "^18.2.0",

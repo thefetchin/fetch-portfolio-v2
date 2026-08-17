@@ -6,6 +6,7 @@ import {
   WAREHOUSE_ZONES,
   WRITEOFF_REASONS,
 } from '../../shared/constants.js'
+import BarcodeInput from './BarcodeInput'
 import { printBatchStickers } from './batchStickerPrint.js'
 import { printRunSheet, printReturnBagLabel } from './runSheetPrint.js'
 import './Inventory.css'
@@ -83,6 +84,7 @@ const SUBVIEWS = [
   { key: 'runs',    label: 'Runs' },
   { key: 'expiry',  label: 'Expiry' },
   { key: 'masters', label: 'Products & suppliers' },
+  { key: 'catalogue', label: 'Import from VLite' },
 ]
 
 export default function Inventory() {
@@ -157,6 +159,7 @@ export default function Inventory() {
       {view === 'runs'    && <RunsView {...shared} />}
       {view === 'expiry'  && <ExpiryView {...shared} />}
       {view === 'masters' && <MastersView {...shared} />}
+      {view === 'catalogue' && <CatalogueView {...shared} />}
     </section>
   )
 }
@@ -464,6 +467,31 @@ function InwardView({ products, suppliers, loadRefs, loadStock, run, say, busy, 
 
         <fieldset className="inv-fieldset">
           <legend>What arrived</legend>
+
+          <BarcodeInput
+            label="Scan a pack to add a line"
+            hint="Scan the manufacturer's barcode and the product is filled in for you. A USB scanner works straight into this box."
+            onProduct={(product) => {
+              // Fill the first blank line rather than always appending, so a
+              // scan straight after opening the form does the obvious thing.
+              setLines((ls) => {
+                const blank = ls.find((l) => !l.productId)
+                const target = blank || blankBillLine()
+                const p = products.find((x) => x.id === product.id)
+                const patch = { productId: product.id }
+                if (p?.gstBps != null) patch.gstBps = p.gstBps
+                if (p?.mrpPaise != null) patch.mrp = String(p.mrpPaise / 100)
+                if (p?.shelfLifeDays) {
+                  const d = new Date()
+                  d.setUTCDate(d.getUTCDate() + p.shelfLifeDays)
+                  patch.expiryDate = d.toISOString().slice(0, 10)
+                }
+                const filled = { ...target, ...patch }
+                return blank ? ls.map((l) => (l.key === blank.key ? filled : l)) : [...ls, filled]
+              })
+            }}
+          />
+
           <div className="inv-lines">
             <div className="inv-line inv-line-head">
               <span>Product</span><span>Qty</span><span>Free</span><span>Rate ₹</span>
@@ -1055,5 +1083,181 @@ function MastersView({ products, suppliers, loadRefs, run, say, busy }) {
         </div>
       </div>
     </div>
+  )
+}
+
+/* =========================================================== catalogue ==== */
+
+/**
+ * Import the branch catalogue from VLite.
+ *
+ * The machines already vend from a catalogue held upstream, so retyping it here
+ * would guarantee the two drift apart. Only identity and pricing come across --
+ * name, HSN, MRP, GST and the barcode. Batch, expiry, quantity and cost stay
+ * ours, because those are the facts VLite must never be the authority on.
+ *
+ * VLite keeps the barcode in a field it calls customProductId, which is what
+ * makes a scanned EAN resolve to a product at goods-in.
+ */
+function CatalogueView({ loadRefs, run, say, oops, busy }) {
+  const [data, setData] = useState(null)
+  const [chosen, setChosen] = useState({})
+  const [cats, setCats] = useState({})
+  const [q, setQ] = useState('')
+  const [only, setOnly] = useState('new')
+  const [result, setResult] = useState(null)
+
+  const load = () => run(async () => {
+    setResult(null)
+    const d = await api('/api/inv/vlite/products')
+    setData(d)
+    setChosen({})
+  })
+
+  const shown = useMemo(() => {
+    if (!data) return []
+    const needle = q.trim().toLowerCase()
+    return data.items.filter((i) => {
+      if (only === 'new' && i.status !== 'new') return false
+      if (only === 'unlinked' && i.status === 'linked') return false
+      if (!needle) return true
+      return `${i.name} ${i.barcode || ''} ${i.displayProductId || ''} ${i.brand || ''}`
+        .toLowerCase().includes(needle)
+    })
+  }, [data, q, only])
+
+  const toggle = (id, on) => setChosen((c) => {
+    const next = { ...c }
+    if (on) next[id] = true; else delete next[id]
+    return next
+  })
+
+  const importNow = () => run(async () => {
+    const ids = Object.keys(chosen).map(Number)
+    const r = await api('/api/inv/vlite/products/import', {
+      method: 'POST',
+      body: { vliteProductIds: ids, categories: cats },
+    })
+    setResult(r)
+    say(`${r.created.length} created, ${r.linked.length} linked to products already here, ${r.skipped.length} skipped.`)
+    setChosen({})
+    await Promise.all([loadRefs(), load()])
+  })
+
+  return (
+    <>
+      {!data && (
+        <div className="inv-form">
+          <div className="inv-form-head"><h3>Import products from VLite</h3></div>
+          <p className="inv-hint">
+            Pulls the branch catalogue the machines already vend from, so the two do
+            not drift apart. Only name, HSN, MRP, GST and the barcode come across —
+            batch, expiry, quantity and cost stay here, because those are the facts
+            VLite must never be the authority on.
+          </p>
+          <div className="inv-actions inv-actions-left">
+            <button type="button" className="inv-primary" onClick={load} disabled={busy}>
+              {busy ? 'Fetching…' : 'Fetch the VLite catalogue'}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {result?.followUp && <div className="inv-callout"><div><strong>Next</strong><p>{result.followUp}</p></div></div>}
+
+      {data && (
+        <>
+          <div className="inv-stats">
+            <div className="inv-stat"><span>{data.summary.total}</span><label>In VLite</label></div>
+            <div className="inv-stat"><span>{data.summary.new}</span><label>Not here yet</label></div>
+            <div className="inv-stat"><span>{data.summary.linked}</span><label>Already linked</label></div>
+            <div className="inv-stat"><span>{data.summary.matchesBarcode}</span><label>Same barcode</label></div>
+            <div className="inv-stat inv-stat-warn"><span>{data.summary.missingBarcode}</span><label>No barcode</label></div>
+            <div className="inv-stat inv-stat-warn"><span>{data.summary.missingGst}</span><label>GST unclear</label></div>
+          </div>
+
+          <div className="inv-cat-head">
+            <div className="inv-cat-search">
+              <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search name, barcode or brand…" />
+            </div>
+            <select value={only} onChange={(e) => setOnly(e.target.value)}>
+              <option value="new">Not here yet</option>
+              <option value="unlinked">Everything unlinked</option>
+              <option value="all">Everything</option>
+            </select>
+            <button type="button" className="inv-ghost" onClick={load}>Refresh</button>
+            <button type="button" className="inv-primary" disabled={busy || !Object.keys(chosen).length} onClick={importNow}>
+              {busy ? 'Importing…' : `Import ${Object.keys(chosen).length || ''}`}
+            </button>
+          </div>
+
+          {!shown.length && <p className="inv-empty">Nothing matches that filter.</p>}
+
+          {!!shown.length && (
+            <div className="inv-table-wrap">
+              <table className="inv-table">
+                <thead>
+                  <tr>
+                    <th></th><th>Product</th><th>Barcode</th><th>Brand</th>
+                    <th className="inv-num">MRP</th><th>GST</th><th>Category here</th><th>Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {shown.map((i) => {
+                    const on = !!chosen[i.vliteProductId]
+                    const disabled = i.status === 'linked'
+                    return (
+                      <tr key={i.vliteProductId} className={on ? 'is-picked' : ''}>
+                        <td>
+                          <input type="checkbox" checked={on} disabled={disabled}
+                            onChange={(e) => toggle(i.vliteProductId, e.target.checked)}
+                            aria-label={`Import ${i.name}`} />
+                        </td>
+                        <td>{i.name}<small>{i.displayProductId}</small></td>
+                        <td className="inv-mono">
+                          {i.barcode || <span className="inv-warn-cell">none — cannot be scanned</span>}
+                        </td>
+                        <td>{i.brand || '—'}</td>
+                        <td className="inv-num">{rupees(i.mrpPaise)}</td>
+                        <td>
+                          {i.gstBps == null
+                            ? <span className="inv-warn-cell">unclear</span>
+                            : `${(i.gstBps / 100).toFixed(0)}%`}
+                        </td>
+                        <td>
+                          <select
+                            value={cats[i.vliteProductId] ?? i.suggestedCategory}
+                            onChange={(e) => setCats((c) => ({ ...c, [i.vliteProductId]: e.target.value }))}
+                            disabled={disabled}
+                          >
+                            {PRODUCT_CATEGORIES.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
+                          </select>
+                        </td>
+                        <td>
+                          {i.status === 'linked'   && <span className="inv-badge inv-badge-linked">linked</span>}
+                          {i.status === 'new'      && <span className="inv-badge inv-badge-new">new</span>}
+                          {i.status === 'matches_barcode' && (
+                            <span className="inv-badge inv-badge-match" title={`Same barcode as ${i.localName}`}>
+                              same barcode
+                            </span>
+                          )}
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          <p className="inv-hint">
+            The category is a guess from VLite’s own wording — correct it here before
+            importing. An import never overwrites a name, MRP or GST rate already
+            corrected by hand: if the two disagree, the local value is the one
+            somebody chose deliberately.
+          </p>
+        </>
+      )}
+    </>
   )
 }

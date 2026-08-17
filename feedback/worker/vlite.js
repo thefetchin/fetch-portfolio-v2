@@ -189,6 +189,73 @@ export async function getSlots(env, vliteMachineId) {
   }))
 }
 
+/**
+ * Derives a GST rate in basis points from a VLite product.
+ *
+ * VLite gives tax as AMOUNTS in paise (cgst, sgst, utgst, cess) alongside a
+ * taxable price, not as a rate -- so the rate has to be inferred. It is then
+ * snapped to the nearest rate India actually uses, because a derived figure
+ * like 1199 or 1201 is a rounding artefact of the source data rather than a
+ * real rate, and our own products carry a CHECK that only permits the real set.
+ *
+ * Returns null when there is nothing to derive from, so a caller can leave the
+ * field for a human rather than assert a wrong 0%.
+ */
+export function deriveGstBps(p) {
+  const taxable = Number(p?.taxablePriceS ?? p?.taxablePriceUT ?? 0)
+  const tax = Number(p?.cgst ?? 0) + Number(p?.sgst ?? 0) + Number(p?.utgst ?? 0)
+  if (!(taxable > 0) || !(tax >= 0)) return null
+  if (tax === 0) return 0
+
+  const raw = Math.round((tax / taxable) * 10_000)
+  const allowed = [0, 500, 1200, 1800, 2800]
+  let best = allowed[0]
+  for (const a of allowed) {
+    if (Math.abs(a - raw) < Math.abs(best - raw)) best = a
+  }
+  // More than 1.5 points away from any real rate means the inference is wrong,
+  // not merely rounded. Say so rather than guess.
+  return Math.abs(best - raw) > 150 ? null : best
+}
+
+/**
+ * The branch product catalogue.
+ *
+ * `customProductId` is where the barcode lives -- that is the field that lets a
+ * scanned EAN resolve to a product, so it is surfaced as `barcode` rather than
+ * buried under VLite's name for it.
+ *
+ * Paginates to the end rather than taking the first page, because a partial
+ * catalogue silently missing items is worse than a slow call.
+ */
+export async function getProducts(env, { pageSize = 100, maxPages = 40, activeOnly = true } = {}) {
+  const out = []
+  for (let page = 0; page < maxPages; page++) {
+    const data = await call(env, 'getProductList', { active: activeOnly, limit: pageSize, page })
+    const rows = data?.data || []
+    for (const p of rows) {
+      out.push({
+        vliteProductId: p.id,
+        name: p.name,
+        displayProductId: p.displayProductId,
+        // The barcode. VLite calls it customProductId.
+        barcode: p.customProductId ? String(p.customProductId).trim() || null : null,
+        hsn: p.hsnCode ? String(p.hsnCode).trim() : null,
+        mrpPaise: Number.isFinite(Number(p.mrp)) ? Number(p.mrp) : null,
+        taxablePaise: Number.isFinite(Number(p.taxablePriceS)) ? Number(p.taxablePriceS) : null,
+        costPaise: Number.isFinite(Number(p.cost)) ? Number(p.cost) : null,
+        gstBps: deriveGstBps(p),
+        brand: p['sub_category.category.brand.name'] ?? null,
+        category: p['sub_category.category.name'] ?? null,
+        subCategory: p['sub_category.name'] ?? null,
+        active: p.active === 1 || p.active === true,
+      })
+    }
+    if (rows.length < pageSize) break
+  }
+  return out
+}
+
 export async function getTransactions(env, { startDate, endDate, page = 0, limit = 100 }) {
   const data = await call(env, 'getTransactions', { startDate, endDate, page, limit })
   return (data?.data || []).map((t) => ({
