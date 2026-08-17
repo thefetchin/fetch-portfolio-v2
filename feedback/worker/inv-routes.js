@@ -14,6 +14,7 @@ import {
   runDetail,
 } from './inv-outward.js'
 import { importVliteProducts, listVliteCatalogue } from './inv-catalogue.js'
+import { importSalesChunk, salesReport, validateSupplierPrice } from './inv-sales.js'
 import { requireRole } from './auth.js'
 import {
   DOC_NUMBER_SQL,
@@ -782,6 +783,26 @@ export async function routeInventory(request, env, auth, idem, json) {
     return importVliteProducts(env, idem, actor, json, validationError, shortId)
   }
 
+  // ---- sales, and the margin on them -----------------------------------
+  if (path === '/api/inv/vlite/sales/import' && method === 'POST') {
+    const d = stockOnly(); if (d) { await idem.abandon(); return json(d, 403) }
+    return handleSalesImport(env, idem, actor, json)
+  }
+  if (path === '/api/inv/sales' && method === 'GET') {
+    const d = stockOnly(); if (d) return json(d, 403)
+    return handleSalesReport(request, env, json)
+  }
+
+  // ---- supplier price lists ---------------------------------------------
+  if (path === '/api/inv/supplier-prices' && method === 'GET') {
+    const d = stockOnly(); if (d) return json(d, 403)
+    return listSupplierPrices(request, env, json)
+  }
+  if (path === '/api/inv/supplier-prices' && method === 'POST') {
+    const d = stockOnly(); if (d) { await idem.abandon(); return json(d, 403) }
+    return createSupplierPrice(env, idem, actor, json)
+  }
+
   // ---- inward ------------------------------------------------------------
   if (path === '/api/inv/purchase-bills' && method === 'GET') {
     const d = stockOnly(); if (d) return json(d, 403)
@@ -982,3 +1003,163 @@ async function handleRunAction(env, idem, actor, runId, action, json) {
   return idem.finish({ ok: true, id: runId, status: after?.status, batches: built.batchCount ?? null })
 }
 
+
+/* ============================================== sales + supplier prices === */
+
+/**
+ * One chunk of a sales import.
+ *
+ * Bounded because VLite needs a getTransactionDetails call per transaction and
+ * the Workers free plan allows 50 subrequests per request. `remaining` tells the
+ * caller to come back; every line carries a dedupe key so repeating a window is
+ * harmless, which is what lets the caller's loop stay dumb.
+ *
+ * NOT idempotency-replayed as a whole: each call does real, different work, so
+ * the key is released on success and the dedupe index is what guarantees
+ * exactly-once at the row level.
+ */
+async function handleSalesImport(env, idem, actor, json) {
+  const body = idem.body || {}
+  const result = await importSalesChunk(env, {
+    from: body.from,
+    to: body.to,
+    maxTransactions: body.maxTransactions,
+    actor,
+  })
+
+  if (result.errors && !result.ok) {
+    await idem.abandon()
+    return json(validationError(result.errors), 422)
+  }
+  if (result.vlite) {
+    await idem.abandon()
+    return json(
+      { error: result.vlite.code || 'vlite_unavailable', message: result.vlite.message },
+      result.vlite.status || 502,
+    )
+  }
+
+  await idem.abandon()
+  return json({
+    ok: true,
+    transactions: result.transactions,
+    imported: result.imported,
+    remaining: result.remaining,
+    unknownProducts: result.unknownProducts,
+    warnings: result.errors,
+  })
+}
+
+async function handleSalesReport(request, env, json) {
+  const url = new URL(request.url)
+  const to = url.searchParams.get('to') || istDateString()
+  const from = url.searchParams.get('from')
+    || new Date(Date.parse(to) - 29 * 86_400_000).toISOString().slice(0, 10)
+  const groupBy = url.searchParams.get('groupBy') === 'pod' ? 'pod' : 'product'
+  const podId = url.searchParams.get('podId') || null
+
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(from) || !/^\d{4}-\d{2}-\d{2}$/.test(to)) {
+    return json(validationError(['Dates must be YYYY-MM-DD.']), 422)
+  }
+  return json(await salesReport(env, { from, to, groupBy, podId }))
+}
+
+async function listSupplierPrices(request, env, json) {
+  const url = new URL(request.url)
+  const productId = url.searchParams.get('productId')
+  const binds = []
+  let where = ''
+  if (productId) { binds.push(productId); where = `WHERE sp.product_id = ?${binds.length}` }
+
+  const rows = await env.DB.prepare(
+    `SELECT sp.price_id, sp.supplier_id, sp.product_id, sp.price_paise, sp.gst_bps,
+            sp.pack_milli, sp.moq_milli, sp.effective_from, sp.effective_to, sp.notes,
+            s.name AS supplier_name, p.name AS product_name, p.uom
+       FROM supplier_prices sp
+       JOIN suppliers s ON s.supplier_id = sp.supplier_id
+       JOIN products  p ON p.product_id  = sp.product_id
+      ${where}
+      ORDER BY p.name ASC, sp.effective_from DESC
+      LIMIT 500`
+  ).bind(...binds).all()
+
+  const today = istDateString()
+  const all = rows.results || []
+
+  // The latest start date per supplier+product that is already in force. A row
+  // is only CURRENT if it is that one -- an open-ended older price is superseded
+  // by a newer one, and a newer price that has not started yet is scheduled, not
+  // live. Calling every open-ended row "current" would tell a manager two
+  // different prices are both in force today.
+  const inForce = new Map()
+  for (const r of all) {
+    if (r.effective_from > today) continue
+    if (r.effective_to && r.effective_to < today) continue
+    const key = `${r.supplier_id}|${r.product_id}`
+    const best = inForce.get(key)
+    if (!best || r.effective_from > best) inForce.set(key, r.effective_from)
+  }
+
+  const statusOf = (r) => {
+    if (r.effective_from > today) return 'scheduled'
+    if (r.effective_to && r.effective_to < today) return 'ended'
+    return inForce.get(`${r.supplier_id}|${r.product_id}`) === r.effective_from
+      ? 'current'
+      : 'superseded'
+  }
+
+  return json({
+    asOf: today,
+    prices: all.map((r) => ({
+      id: r.price_id,
+      supplierId: r.supplier_id,
+      supplierName: r.supplier_name,
+      productId: r.product_id,
+      productName: r.product_name,
+      uom: r.uom,
+      pricePaise: r.price_paise,
+      gstBps: r.gst_bps,
+      packMilli: r.pack_milli,
+      // What the price works out to per single unit, which is the figure that
+      // actually feeds a margin.
+      unitPricePaise: Math.round((r.price_paise * 1000) / r.pack_milli),
+      moqMilli: r.moq_milli,
+      effectiveFrom: r.effective_from,
+      effectiveTo: r.effective_to,
+      status: statusOf(r),
+      notes: r.notes,
+    })),
+  })
+}
+
+async function createSupplierPrice(env, idem, actor, json) {
+  const result = validateSupplierPrice(idem.body)
+  if (!result.ok) { await idem.abandon(); return json(validationError(result.errors), 422) }
+  const v = result.value
+  const id = shortId('spr')
+
+  const failed = await runBatch(env, [
+    env.DB.prepare(
+      `INSERT INTO supplier_prices
+         (price_id, supplier_id, product_id, price_paise, gst_bps, pack_milli,
+          effective_from, effective_to, notes, created_by)
+       VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10)
+       ON CONFLICT(supplier_id, product_id, effective_from) DO UPDATE SET
+         price_paise = excluded.price_paise,
+         gst_bps     = excluded.gst_bps,
+         pack_milli  = excluded.pack_milli,
+         effective_to = excluded.effective_to,
+         notes       = excluded.notes`
+    ).bind(
+      id, v.supplier_id, v.product_id, v.price_paise, v.gst_bps, v.pack_milli,
+      v.effective_from, v.effective_to, v.notes, actor,
+    ),
+  ])
+  if (failed) { await idem.abandon(); return json({ error: failed.error, message: failed.message }, failed.status) }
+
+  return idem.finish({
+    ok: true,
+    id,
+    unitPricePaise: Math.round((v.price_paise * 1000) / v.pack_milli),
+  })
+}

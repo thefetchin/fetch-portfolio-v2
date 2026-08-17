@@ -84,6 +84,8 @@ const SUBVIEWS = [
   { key: 'runs',    label: 'Runs' },
   { key: 'expiry',  label: 'Expiry' },
   { key: 'masters', label: 'Products & suppliers' },
+  { key: 'prices', label: 'Supplier prices' },
+  { key: 'sales',  label: 'Sales & margin' },
   { key: 'catalogue', label: 'Import from VLite' },
 ]
 
@@ -159,6 +161,8 @@ export default function Inventory() {
       {view === 'runs'    && <RunsView {...shared} />}
       {view === 'expiry'  && <ExpiryView {...shared} />}
       {view === 'masters' && <MastersView {...shared} />}
+      {view === 'prices' && <PricesView {...shared} />}
+      {view === 'sales'  && <SalesView {...shared} />}
       {view === 'catalogue' && <CatalogueView {...shared} />}
     </section>
   )
@@ -1106,6 +1110,7 @@ function CatalogueView({ loadRefs, run, say, oops, busy }) {
   const [q, setQ] = useState('')
   const [only, setOnly] = useState('new')
   const [result, setResult] = useState(null)
+  const [progress, setProgress] = useState(null)
 
   const load = () => run(async () => {
     setResult(null)
@@ -1132,17 +1137,44 @@ function CatalogueView({ loadRefs, run, say, oops, busy }) {
     return next
   })
 
-  const importNow = () => run(async () => {
-    const ids = Object.keys(chosen).map(Number)
-    const r = await api('/api/inv/vlite/products/import', {
-      method: 'POST',
-      body: { vliteProductIds: ids, categories: cats },
-    })
-    setResult(r)
-    say(`${r.created.length} created, ${r.linked.length} linked to products already here, ${r.skipped.length} skipped.`)
+  /**
+   * Imports a list of VLite ids, in chunks.
+   *
+   * The endpoint caps a single call at 500, and a catalogue can be larger, so
+   * this walks it. Each chunk gets its own idempotency key because each is a
+   * genuinely different request -- sharing one would make the second chunk look
+   * like a replay of the first and return the wrong result.
+   */
+  const importIds = (ids) => run(async () => {
+    if (!ids.length) return
+    const totals = { created: [], linked: [], skipped: [], followUp: null }
+    const CHUNK = 200
+    for (let i = 0; i < ids.length; i += CHUNK) {
+      const slice = ids.slice(i, i + CHUNK)
+      setProgress(`Importing ${Math.min(i + CHUNK, ids.length)} of ${ids.length}…`)
+      const r = await api('/api/inv/vlite/products/import', {
+        method: 'POST',
+        body: { vliteProductIds: slice, categories: cats },
+      })
+      totals.created.push(...r.created)
+      totals.linked.push(...r.linked)
+      totals.skipped.push(...r.skipped)
+      totals.followUp = r.followUp || totals.followUp
+    }
+    setProgress(null)
+    setResult(totals)
+    say(`${totals.created.length} created, ${totals.linked.length} linked to products already here, ${totals.skipped.length} skipped.`)
     setChosen({})
     await Promise.all([loadRefs(), load()])
   })
+
+  const importNow = () => importIds(Object.keys(chosen).map(Number))
+
+  /** Everything importable: new, or matching a barcode we already hold. */
+  const importable = useMemo(
+    () => (data?.items || []).filter((i) => i.status !== 'linked'),
+    [data],
+  )
 
   return (
     <>
@@ -1186,8 +1218,23 @@ function CatalogueView({ loadRefs, run, say, oops, busy }) {
               <option value="all">Everything</option>
             </select>
             <button type="button" className="inv-ghost" onClick={load}>Refresh</button>
-            <button type="button" className="inv-primary" disabled={busy || !Object.keys(chosen).length} onClick={importNow}>
-              {busy ? 'Importing…' : `Import ${Object.keys(chosen).length || ''}`}
+            <button type="button" className="inv-ghost" disabled={busy || !Object.keys(chosen).length} onClick={importNow}>
+              Import {Object.keys(chosen).length || ''} selected
+            </button>
+            <button
+              type="button"
+              className="inv-primary"
+              disabled={busy || !importable.length}
+              onClick={() => {
+                const n = importable.length
+                if (window.confirm(
+                  `Import all ${n} product${n === 1 ? '' : 's'} that are not already linked?\n\n`
+                  + 'Categories use the guess shown in each row. You can correct them afterwards '
+                  + 'under Products & suppliers.'
+                )) importIds(importable.map((i) => i.vliteProductId))
+              }}
+            >
+              {busy ? (progress || 'Importing…') : `Import all ${importable.length || ''}`}
             </button>
           </div>
 
@@ -1256,6 +1303,287 @@ function CatalogueView({ loadRefs, run, say, oops, busy }) {
             corrected by hand: if the two disagree, the local value is the one
             somebody chose deliberately.
           </p>
+        </>
+      )}
+    </>
+  )
+}
+
+/* ====================================================== supplier prices === */
+
+/**
+ * What a supplier says they will charge.
+ *
+ * Distinct from what a bill actually charged: the bill is the truth for a batch,
+ * this is a quote. It has two jobs -- defaulting the rate at goods-in so nobody
+ * retypes it, and giving margin a cost to fall back on for stock that arrived
+ * before batch tracking existed.
+ *
+ * Prices are dated rather than overwritten, so a price rise does not silently
+ * restate the margin on everything sold last month.
+ */
+function PricesView({ products, suppliers, run, say, oops, busy }) {
+  const [prices, setPrices] = useState(null)
+  const [form, setForm] = useState({
+    supplierId: '', productId: '', price: '', gstBps: 1200,
+    packSize: '1', effectiveFrom: today(), notes: '',
+  })
+
+  const load = useCallback(() => {
+    api('/api/inv/supplier-prices').then((d) => setPrices(d.prices || [])).catch(oops)
+  }, [oops])
+  useEffect(() => { load() }, [load])
+
+  const submit = (e) => {
+    e.preventDefault()
+    run(async () => {
+      const r = await api('/api/inv/supplier-prices', { method: 'POST', body: form })
+      say(`Price saved — ${rupees(r.unitPricePaise)} a unit, excluding GST.`)
+      setForm({ ...form, price: '', notes: '' })
+      load()
+    })
+  }
+
+  return (
+    <>
+      <form className="inv-form" onSubmit={submit}>
+        <div className="inv-form-head"><h3>Add a supplier price</h3></div>
+        <div className="inv-grid">
+          <label className="inv-field"><span>Supplier <em>required</em></span>
+            <select value={form.supplierId} onChange={(e) => setForm({ ...form, supplierId: e.target.value })} required>
+              <option value="">Choose…</option>
+              {suppliers.filter((s) => s.active).map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+            </select></label>
+          <label className="inv-field"><span>Product <em>required</em></span>
+            <select value={form.productId} onChange={(e) => setForm({ ...form, productId: e.target.value })} required>
+              <option value="">Choose…</option>
+              {products.filter((p) => p.active).map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+            </select></label>
+          <label className="inv-field"><span>Price ₹ <em>excluding GST</em></span>
+            <input value={form.price} onChange={(e) => setForm({ ...form, price: e.target.value })} inputMode="decimal" placeholder="14.20" required /></label>
+          <label className="inv-field"><span>For how many units <em>1 = per unit</em></span>
+            <input value={form.packSize} onChange={(e) => setForm({ ...form, packSize: e.target.value })} inputMode="decimal" placeholder="1" /></label>
+          <label className="inv-field"><span>GST</span>
+            <select value={form.gstBps} onChange={(e) => setForm({ ...form, gstBps: Number(e.target.value) })}>
+              {GST_RATES.map((g) => <option key={g.value} value={g.value}>{g.label}</option>)}
+            </select></label>
+          <label className="inv-field"><span>In force from</span>
+            <input type="date" value={form.effectiveFrom} onChange={(e) => setForm({ ...form, effectiveFrom: e.target.value })} required /></label>
+          <label className="inv-field inv-span2"><span>Notes</span>
+            <input value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} placeholder="Quoted on the phone, 12 Aug" /></label>
+        </div>
+        <p className="inv-hint">
+          Enter the price <strong>excluding GST</strong>. Margin compares net revenue
+          against net cost — mixing a GST-inclusive price in here would overstate
+          cost and understate every margin by the tax rate. If the quote is per
+          case, put the case price in and the number of units in the box next to it.
+        </p>
+        <div className="inv-actions">
+          <button type="submit" className="inv-primary" disabled={busy}>Save price</button>
+        </div>
+      </form>
+
+      <div className="inv-list-head"><h3>Prices <span>{prices?.length ?? ''}</span></h3></div>
+      {!prices && <p className="inv-empty">Loading…</p>}
+      {prices?.length === 0 && <p className="inv-empty">No supplier prices yet.</p>}
+      {!!prices?.length && (
+        <div className="inv-table-wrap">
+          <table className="inv-table">
+            <thead><tr>
+              <th>Product</th><th>Supplier</th><th className="inv-num">Price</th>
+              <th className="inv-num">For</th><th className="inv-num">Per unit</th>
+              <th>From</th><th></th>
+            </tr></thead>
+            <tbody>
+              {prices.map((p) => (
+                <tr key={p.id} className={p.status === 'current' ? '' : 'is-cancelled'}>
+                  <td>{p.productName}</td>
+                  <td>{p.supplierName}</td>
+                  <td className="inv-num">{rupees(p.pricePaise)}</td>
+                  <td className="inv-num">{units(p.packMilli)} {p.uom}</td>
+                  <td className="inv-num"><strong>{rupees(p.unitPricePaise)}</strong></td>
+                  <td className="inv-nowrap">{fmtDate(p.effectiveFrom)}</td>
+                  <td>
+                    {p.status === 'current'    && <span className="inv-badge inv-badge-linked">in force</span>}
+                    {p.status === 'scheduled'  && <span className="inv-badge inv-badge-new">from {fmtDate(p.effectiveFrom)}</span>}
+                    {p.status === 'superseded' && <span className="inv-badge">superseded</span>}
+                    {p.status === 'ended'      && <span className="inv-badge">ended {fmtDate(p.effectiveTo)}</span>}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </>
+  )
+}
+
+/* ========================================================= sales/margin === */
+
+const bps = (v) => (v == null ? '—' : `${(v / 100).toFixed(1)}%`)
+
+/**
+ * Sales pulled from VLite, and the margin on them.
+ *
+ * Both sides are net of GST: revenue is the line's taxable amount, not what the
+ * customer paid, and cost excludes GST because input credit is a receivable.
+ * The report says how many lines have a trustworthy cost, because a margin
+ * computed over half the lines is a figure people will quote without knowing
+ * that.
+ */
+function SalesView({ run, say, oops, busy }) {
+  const [report, setReport] = useState(null)
+  const [groupBy, setGroupBy] = useState('product')
+  const [from, setFrom] = useState(() => new Date(Date.now() - 29 * 86_400_000).toISOString().slice(0, 10))
+  const [to, setTo] = useState(today())
+  const [progress, setProgress] = useState(null)
+  const [unknown, setUnknown] = useState([])
+
+  const load = useCallback((f, t, g) => {
+    api(`/api/inv/sales?from=${f}&to=${t}&groupBy=${g}`).then(setReport).catch(oops)
+  }, [oops])
+  useEffect(() => { load(from, to, groupBy) }, [load, from, to, groupBy])
+
+  /**
+   * Imports the window in chunks.
+   *
+   * VLite needs one call per transaction for its line items and the Workers free
+   * plan allows 50 subrequests per request, so the server imports a bounded
+   * number and reports what is left. Repeating a window is harmless because every
+   * line carries a dedupe key, which is what lets this loop be this simple.
+   */
+  const importSales = () => run(async () => {
+    setUnknown([])
+    let rounds = 0
+    let imported = 0
+    let remaining = 0
+    const seenUnknown = new Map()
+
+    do {
+      rounds++
+      setProgress(`Importing… ${imported} line${imported === 1 ? '' : 's'} so far`)
+      const r = await api('/api/inv/vlite/sales/import', { method: 'POST', body: { from, to } })
+      imported += r.imported
+      remaining = r.remaining
+      for (const u of r.unknownProducts || []) seenUnknown.set(u.vliteProductId, u.name)
+      // A guard against a server that never reports progress: without it a bug
+      // upstream would spin here forever.
+      if (r.transactions === 0) break
+    } while (remaining > 0 && rounds < 60)
+
+    setProgress(null)
+    setUnknown([...seenUnknown.entries()].map(([id, name]) => ({ id, name })))
+    say(
+      `${imported} sale line${imported === 1 ? '' : 's'} imported`
+      + (remaining > 0 ? ` — ${remaining} transactions still to go, run it again.` : '.')
+    )
+    load(from, to, groupBy)
+  })
+
+  const t = report?.totals
+
+  return (
+    <>
+      <form className="inv-form" onSubmit={(e) => { e.preventDefault(); importSales() }}>
+        <div className="inv-form-head"><h3>Sales &amp; margin</h3></div>
+        <div className="inv-grid">
+          <label className="inv-field"><span>From</span>
+            <input type="date" value={from} max={to} onChange={(e) => setFrom(e.target.value)} /></label>
+          <label className="inv-field"><span>To</span>
+            <input type="date" value={to} max={today()} onChange={(e) => setTo(e.target.value)} /></label>
+          <label className="inv-field"><span>Group by</span>
+            <select value={groupBy} onChange={(e) => setGroupBy(e.target.value)}>
+              <option value="product">Product</option>
+              <option value="pod">Pod</option>
+            </select></label>
+        </div>
+        <div className="inv-actions inv-actions-left">
+          <button type="submit" className="inv-primary" disabled={busy}>
+            {busy ? (progress || 'Importing…') : 'Import sales from VLite'}
+          </button>
+          <button type="button" className="inv-ghost" onClick={() => load(from, to, groupBy)}>Refresh</button>
+        </div>
+        <p className="inv-hint">
+          Revenue is the taxable amount, not what the customer paid — the GST
+          collected is payable to the government, so counting it would overstate
+          every margin by the tax rate. Cost excludes GST for the matching reason.
+          Importing the same window twice is harmless.
+        </p>
+      </form>
+
+      {!!unknown.length && (
+        <div className="inv-callout">
+          <div>
+            <strong>{unknown.length} product{unknown.length === 1 ? '' : 's'} sold that we do not hold</strong>
+            <p>
+              These have no cost here, so their sales count as revenue with no margin:{' '}
+              {unknown.slice(0, 6).map((u) => u.name).join(', ')}
+              {unknown.length > 6 ? `, and ${unknown.length - 6} more` : ''}. Import them
+              under “Import from VLite”, then run this again.
+            </p>
+          </div>
+        </div>
+      )}
+
+      {!report && <p className="inv-empty">Loading…</p>}
+
+      {t && (
+        <>
+          <div className="inv-stats">
+            <div className="inv-stat"><span>{units(t.qtyMilli)}</span><label>Units sold</label><em>{t.lines} lines</em></div>
+            <div className="inv-stat"><span>{rupees(t.netPaise)}</span><label>Net revenue</label><em>{rupees(t.grossPaise)} incl GST</em></div>
+            <div className="inv-stat"><span>{rupees(t.costPaise)}</span><label>Cost of goods</label></div>
+            <div className="inv-stat inv-stat-total"><span>{rupees(t.marginPaise)}</span><label>Margin</label></div>
+            <div className="inv-stat"><span>{bps(t.marginBps)}</span><label>Margin rate</label></div>
+            {!!t.linesWithoutCost && (
+              <div className="inv-stat inv-stat-warn">
+                <span>{t.linesWithoutCost}</span><label>Lines with no cost</label><em>margin understated</em>
+              </div>
+            )}
+          </div>
+
+          {!!t.lines && (
+            <p className="inv-hint">
+              {t.linesExactCost} of {t.lines} lines are costed from the exact batch that
+              was in the slot; the rest fall back to the product’s most recent batch or
+              its supplier price. Exact costing improves once slot contents are tracked
+              per machine.
+              {t.linesWithoutCost
+                ? ` ${t.linesWithoutCost} lines have no cost at all and are excluded from the margin, so the figure above is conservative.`
+                : ''}
+            </p>
+          )}
+
+          {!report.groups.length && <p className="inv-empty">No sales in that window. Import them first.</p>}
+
+          {!!report.groups.length && (
+            <div className="inv-table-wrap">
+              <table className="inv-table">
+                <thead><tr>
+                  <th>{groupBy === 'pod' ? 'Pod' : 'Product'}</th>
+                  <th className="inv-num">Units</th><th className="inv-num">Net revenue</th>
+                  <th className="inv-num">Cost</th><th className="inv-num">Margin</th>
+                  <th className="inv-num">Rate</th><th></th>
+                </tr></thead>
+                <tbody>
+                  {report.groups.map((g) => (
+                    <tr key={g.name}>
+                      <td>{g.name}</td>
+                      <td className="inv-num">{units(g.qtyMilli)}</td>
+                      <td className="inv-num">{rupees(g.netPaise)}</td>
+                      <td className="inv-num">{rupees(g.costPaise)}</td>
+                      <td className="inv-num"><strong>{rupees(g.marginPaise)}</strong></td>
+                      <td className="inv-num">{bps(g.marginBps)}</td>
+                      <td>{!!g.linesWithoutCost && (
+                        <span className="inv-warn-cell">{g.linesWithoutCost} uncosted</span>
+                      )}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </>
       )}
     </>
