@@ -25,23 +25,34 @@ const section = (t) => console.log(`\n── ${t} ${'─'.repeat(Math.max(0, 66 
 /* ---------------------------------------------------------- GST inference -- */
 section('GST inferred from tax amounts')
 
-// VLite gives tax as paise amounts, not a rate. Rs 35 MRP, Rs 31.25 taxable,
-// 187 + 188 paise tax = 12%.
-eq('12% from a 187/188 paise split', deriveGstBps({ taxablePriceS: 3125, cgst: 187, sgst: 188 }), 1200)
-eq('5% ',  deriveGstBps({ taxablePriceS: 10000, cgst: 250, sgst: 250 }), 500)
-eq('18%',  deriveGstBps({ taxablePriceS: 10000, cgst: 900, sgst: 900 }), 1800)
-eq('28%',  deriveGstBps({ taxablePriceS: 10000, cgst: 1400, sgst: 1400 }), 2800)
-eq('0% when there is no tax', deriveGstBps({ taxablePriceS: 10000, cgst: 0, sgst: 0 }), 0)
+// Real values from the live catalogue. The cgst/sgst amount fields are ZERO for
+// almost every product there, so the rate has to come from the gap between the
+// gross (mrp) and net (taxablePrice) prices.
+eq('5%  from mrp 2000 / taxable 1905', deriveGstBps({ mrp: 2000, taxablePriceS: 1905 }), 500)
+eq('12% from mrp 3000 / taxable 2679', deriveGstBps({ mrp: 3000, taxablePriceS: 2679 }), 1200)
+eq('18% from mrp 3500 / taxable 2966', deriveGstBps({ mrp: 3500, taxablePriceS: 2966 }), 1800)
+eq('zero rated',                       deriveGstBps({ mrp: 2000, taxablePriceS: 2000 }), 0)
+
+// Aerated and energy drinks come out at 40%: 28% GST plus 12% cess. Cess is not
+// part of a GST rate, so the rate is 28%.
+eq('a 40% drink is 28% GST, not an invalid 40% rate',
+  deriveGstBps({ mrp: 4000, taxablePriceS: 2857 }), 2800)
 
 // A paisa of rounding must not invent a rate the CHECK constraint would refuse.
-eq('a rounding artefact snaps to 12%', deriveGstBps({ taxablePriceS: 3125, cgst: 188, sgst: 188 }), 1200)
-eq('and off the other side too',       deriveGstBps({ taxablePriceS: 3125, cgst: 186, sgst: 187 }), 1200)
-eq('UT GST is counted as well',        deriveGstBps({ taxablePriceUT: 10000, utgst: 1800 }), 1800)
+eq('4.99% snaps to 5%',  deriveGstBps({ mrp: 3500, taxablePriceS: 3334 }), 500)
 
-// Nothing to derive from, or nowhere near a real rate: say so rather than
-// assert a wrong 0%.
+// 10% is not a GST slab -- in the live data it is 5 typed into both tax boxes.
+// Reporting it as unknown is right: asserting 0% was the original bug.
+eq('10% is not a slab -> unknown',   deriveGstBps({ mrp: 3500, taxablePriceS: 3182 }), null)
+eq('96% nonsense -> unknown',        deriveGstBps({ mrp: 7000, taxablePriceS: 3571 }), null)
+
+// The amount fields still work where a product actually carries them.
+eq('falls back to tax amounts when there is no mrp',
+  deriveGstBps({ taxablePriceS: 3125, cgst: 187, sgst: 188 }), 1200)
+eq('UT GST counts in the fallback too',
+  deriveGstBps({ taxablePriceUT: 10000, utgst: 1800 }), 1800)
+
 eq('no taxable price -> unknown', deriveGstBps({ cgst: 100, sgst: 100 }), null)
-eq('nonsense ratio -> unknown',   deriveGstBps({ taxablePriceS: 100, cgst: 900, sgst: 900 }), null)
 eq('missing product -> unknown',  deriveGstBps(null), null)
 
 /* ------------------------------------------------------- category guessing -- */

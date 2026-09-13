@@ -192,29 +192,50 @@ export async function getSlots(env, vliteMachineId) {
 /**
  * Derives a GST rate in basis points from a VLite product.
  *
- * VLite gives tax as AMOUNTS in paise (cgst, sgst, utgst, cess) alongside a
- * taxable price, not as a rate -- so the rate has to be inferred. It is then
- * snapped to the nearest rate India actually uses, because a derived figure
- * like 1199 or 1201 is a rounding artefact of the source data rather than a
- * real rate, and our own products carry a CHECK that only permits the real set.
+ * The obvious source -- the cgst / sgst / utgst amount fields -- turns out to be
+ * ZERO for almost every product in the live catalogue, even where tax is plainly
+ * being charged. Deriving from those alone therefore produced a confident,
+ * wrong 0% for 225 of 228 products on the first import.
  *
- * Returns null when there is nothing to derive from, so a caller can leave the
- * field for a human rather than assert a wrong 0%.
+ * The figures VLite does populate reliably are mrp (gross) and taxablePrice
+ * (net), so the total rate is recovered from the gap between them and the tax
+ * amounts are used only as a fallback. Observed in the live catalogue: mostly
+ * 5%, some 12% and 18%, and drinks at 40% -- which is the standard 28% GST plus
+ * 12% cess, so it maps to 28% here because cess is not part of a GST rate.
+ *
+ * The result is snapped to the rates India actually uses, because our products
+ * table carries a CHECK permitting only that set and a derived 4.99 is a
+ * rounding artefact of the source rather than a real rate. Anything that will
+ * not snap returns null so a caller can leave the field for a human instead of
+ * asserting something wrong.
  */
 export function deriveGstBps(p) {
   const taxable = Number(p?.taxablePriceS ?? p?.taxablePriceUT ?? 0)
-  const tax = Number(p?.cgst ?? 0) + Number(p?.sgst ?? 0) + Number(p?.utgst ?? 0)
-  if (!(taxable > 0) || !(tax >= 0)) return null
-  if (tax === 0) return 0
+  const mrp = Number(p?.mrp ?? 0)
 
-  const raw = Math.round((tax / taxable) * 10_000)
+  // Primary signal: the gap between gross and net.
+  let raw = null
+  if (taxable > 0 && mrp > 0 && mrp >= taxable) {
+    raw = Math.round(((mrp - taxable) / taxable) * 10_000)
+  } else if (taxable > 0) {
+    // Fallback: the tax amount fields, correct on the rare rows that carry them.
+    const tax = Number(p?.cgst ?? 0) + Number(p?.sgst ?? 0) + Number(p?.utgst ?? 0)
+    if (tax >= 0) raw = Math.round((tax / taxable) * 10_000)
+  }
+  if (raw === null) return null
+  if (raw === 0) return 0
+
+  // 28% + 12% cess reads as 40% here. Cess is not part of the GST rate, so the
+  // rate is 28% and the cess is carried separately wherever it is needed.
+  if (Math.abs(raw - 4000) <= 150) return 2800
+
   const allowed = [0, 500, 1200, 1800, 2800]
   let best = allowed[0]
   for (const a of allowed) {
     if (Math.abs(a - raw) < Math.abs(best - raw)) best = a
   }
-  // More than 1.5 points away from any real rate means the inference is wrong,
-  // not merely rounded. Say so rather than guess.
+  // More than 1.5 points from any real rate means the inference is wrong, not
+  // merely rounded -- a 10% total (5 typed into both tax boxes) lands here.
   return Math.abs(best - raw) > 150 ? null : best
 }
 
