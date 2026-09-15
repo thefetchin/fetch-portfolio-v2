@@ -1,5 +1,5 @@
 /**
- * The vNetra bulk-upload CSV, and the GST split it needs.
+ * The vNetra bulk-upload sheet, and the GST split it needs.
  *
  * Ported from scripts/vlite-products-export.py, which worked this out against
  * the live catalogue. The important finding, repeated here because it is
@@ -13,8 +13,11 @@
  * The amount fields are the fallback, not the primary.
  */
 
+/** The template's sheet name. The importer looks for it. */
+export const SHEET_NAME = 'Products'
+
 /** The template's column order. If an upload is rejected, correct it here. */
-export const CSV_COLUMNS = [
+export const COLUMNS = [
   'Product Code', 'Product Name (English)', 'Brand', 'Category',
   'Selling Price', 'Stock Qty', 'HSN Code', 'Product Description',
   'CGST (%)', 'SGST (%)', 'CESS (%)', 'IGST (%)',
@@ -90,21 +93,34 @@ export function pctOf(amountPaise, taxablePaise) {
   return (Number(amountPaise || 0) / taxable) * 100
 }
 
-/** Paise -> a two-decimal string. A bare float writes 35 as "35.0", which some
- *  importers read as a malformed price. */
-export function rupees(paise) {
-  // Number(null) and Number('') are both 0, so a missing MRP would otherwise
-  // be written as "0.00" -- a price of zero, which on a vending machine means
-  // the product is free. Missing has to stay blank and be caught by the
-  // reviewer, not silently become the cheapest thing in the file.
+/**
+ * Paise -> rupees as a NUMBER, because the template's own price cells are
+ * numeric and a text price is the kind of thing an importer rejects.
+ *
+ * Missing stays blank. Number(null) and Number('') are both 0, so without the
+ * guard a product with no MRP would be priced at zero -- and zero on a vending
+ * machine means free. Blank is caught by the reviewer; free is not.
+ */
+export function priceOf(paise) {
   if (paise === null || paise === undefined || paise === '') return ''
   const n = Number(paise)
-  return Number.isFinite(n) ? (n / 100).toFixed(2) : ''
+  if (!Number.isFinite(n)) return ''
+  return Math.round(n) / 100
 }
 
-/** RFC 4180: quote everything, double any embedded quote. A product name with
- *  a comma in it would otherwise shift every later column by one. */
-const cell = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`
+/**
+ * HSN as a number where that is safe, as text where it is not.
+ *
+ * The template's HSN cell is numeric, so numeric is the default. But HSN codes
+ * carry meaningful leading zeros -- 0901 is coffee -- and 0901 written as a
+ * number is 901, a different code on a tax-bearing record. Those stay text.
+ */
+export function hsnCell(hsn) {
+  const s = String(hsn ?? '').trim()
+  if (!s) return ''
+  if (/^[1-9]\d*$/.test(s)) return Number(s)
+  return s
+}
 
 /**
  * One product -> one CSV row object, plus anything worth telling a human.
@@ -133,9 +149,9 @@ export function rowFor(p) {
       'Product Name (English)': name,
       Brand: (p.brand || '').trim(),
       Category: (p.category || '').trim(),
-      'Selling Price': rupees(mrp),
+      'Selling Price': priceOf(mrp),
       'Stock Qty': 0,
-      'HSN Code': hsn,
+      'HSN Code': hsnCell(hsn),
       'Product Description': name,
       'CGST (%)': cgst, 'SGST (%)': sgst, 'CESS (%)': cess, 'IGST (%)': igst,
     },
@@ -144,10 +160,3 @@ export function rowFor(p) {
   }
 }
 
-/** Rows -> the CSV text. */
-export function toCsv(rows) {
-  const lines = [CSV_COLUMNS.map(cell).join(',')]
-  for (const r of rows) lines.push(CSV_COLUMNS.map((c) => cell(r[c])).join(','))
-  // Trailing newline: some importers drop the last row without one.
-  return lines.join('\r\n') + '\r\n'
-}

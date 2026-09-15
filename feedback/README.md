@@ -278,7 +278,7 @@ is the format in which consent gets forgotten.
 `admin.thefetch.in` → Inventory → **Compare with vNetra**.
 
 **Generate bulk upload** pulls the VLite catalogue, leaves out everything
-vNetra is already known to have, and downloads two files: the bulk CSV and a
+vNetra is already known to have, and downloads two files: the bulk spreadsheet and a
 console script that adds those products' images once the CSV is in.
 
 ### Why an upload is not recorded until you confirm it
@@ -286,7 +286,7 @@ console script that adds those products' images once the CSV is in.
 Generating a file does not mark anything as added. The export sits pending
 until someone presses **The upload worked**.
 
-Marking at generation time would mean a rejected CSV silently excluded those
+Marking at generation time would mean a rejected file silently excluded those
 products from every future export — they would never be uploaded, and nothing
 would ever say so. That failure is invisible and permanent, which is the worst
 shape a bug can have. Pressing **It failed** puts them straight back into the
@@ -309,16 +309,24 @@ A capture overwrites an assertion, because one of them was actually seen. The
 `scripts/vnetra-capture-products.js` and load the file to replace that with
 what is really there.
 
-### The CSV format
+### The spreadsheet format
 
-Columns come from the products.xlsx bulk template and live in
-`shared/vnetraCsv.js` — the single place to correct them if an upload is
-rejected. Two things in there are deliberate:
+An `.xlsx` with one sheet named `Products`, matching the bulk template's own
+sheet name and cell types. Columns live in `shared/vnetraSheet.js` — the single
+place to correct them if an upload is rejected. The writer is
+`shared/xlsx.js`, about 200 lines, rather than a spreadsheet library: the
+alternatives are hundreds of kilobytes to produce a twelve-column file, and
+this ships in the dashboard bundle.
+
+Three things in there are deliberate:
 
 * **Stock Qty is 0.** Stock in vNetra comes from loading a machine; an opening
   quantity here would put phantom stock on the books for every product.
-* **A missing MRP is written blank, never `0.00`.** A price of zero on a
-  vending machine means free.
+* **A missing MRP is written blank, never `0`.** A price of zero on a vending
+  machine means free.
+* **HSN codes keep leading zeros.** The template's HSN cell is numeric, so
+  numeric is the default — but `0901` (coffee) written as a number is `901`, a
+  different code on a tax-bearing record, so those are written as text.
 
 GST is split CGST/SGST/CESS from the gap between MRP and taxable price —
 VLite's tax *amount* fields are zero for most products, so deriving from them

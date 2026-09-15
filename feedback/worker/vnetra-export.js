@@ -1,6 +1,6 @@
 import { VliteError, getProducts } from './vlite.js'
 import { CODE_RE, normaliseCode } from './vnetra.js'
-import { rowFor, toCsv } from '../shared/vnetraCsv.js'
+import { rowFor, COLUMNS, SHEET_NAME } from '../shared/vnetraSheet.js'
 import { buildImageScript } from '../shared/vnetraImageScript.js'
 
 /**
@@ -136,8 +136,14 @@ export async function generateExport(env, idem, actor, json, validationError, sh
     ok: true,
     exportId,
     generatedAt,
-    csv: toCsv(rows),
-    csvFilename: `vnetra-products-${exportId}.csv`,
+    // The rows go back as data and the browser builds the .xlsx. Keeping the
+    // zip and XML out of the Worker matters on the free plan, where a request
+    // gets 10ms of CPU -- and the browser has to hold the bytes to download
+    // them anyway.
+    columns: COLUMNS,
+    sheetName: SHEET_NAME,
+    rows,
+    filename: `vnetra-products-${exportId}.xlsx`,
     imageScript: Object.keys(imageMap).length
       ? buildImageScript({ map: imageMap, base: IMAGE_BASE, generatedAt })
       : null,

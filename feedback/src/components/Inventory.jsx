@@ -9,6 +9,7 @@ import {
 import BarcodeInput from './BarcodeInput'
 import { printBatchStickers } from './batchStickerPrint.js'
 import { printRunSheet, printReturnBagLabel } from './runSheetPrint.js'
+import { buildXlsx } from '../../shared/xlsx.js'
 import './Inventory.css'
 
 /**
@@ -1659,6 +1660,15 @@ function VnetraView({ run, say, oops, busy }) {
 
   useEffect(() => { loadExports() }, [loadExports])
 
+  const downloadBytes = (name, bytes, type) => {
+    const url = URL.createObjectURL(new Blob([bytes], { type }))
+    const a = document.createElement('a')
+    a.href = url
+    a.download = name
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
   const download = (name, text, type = 'text/plain') => {
     const url = URL.createObjectURL(new Blob([text], { type: `${type};charset=utf-8` }))
     const a = document.createElement('a')
@@ -1672,7 +1682,9 @@ function VnetraView({ run, say, oops, busy }) {
     const r = await api('/api/inv/vnetra/exports', { method: 'POST', body: {} })
     if (r.empty) { setPendingFiles(null); say(r.message); await loadExports(); return }
 
-    download(r.csvFilename, r.csv, 'text/csv')
+    const xlsx = buildXlsx({ sheetName: r.sheetName, columns: r.columns, rows: r.rows })
+    downloadBytes(r.filename, xlsx,
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
     if (r.imageScript) download(r.imageFilename, r.imageScript, 'text/javascript')
     setPendingFiles(r)
     say(
@@ -1775,14 +1787,14 @@ function VnetraView({ run, say, oops, busy }) {
             {pending.created_at ? ` ${fmtWhen(pending.created_at)}` : ''} — not yet recorded as added.
           </strong>
           <p>
-            Upload the CSV to vNetra{pending.image_count
+            Upload the spreadsheet to vNetra{pending.image_count
               ? `, then run the image script for the ${plural(pending.image_count, 'product')} with images`
               : ''}. Nothing is excluded from the next export until you say the
             upload worked, so a rejected file costs you nothing.
           </p>
           {pendingFiles?.exportId === pending.export_id && (
             <p className="inv-hint">
-              Files downloaded: <code>{pendingFiles.csvFilename}</code>
+              Files downloaded: <code>{pendingFiles.filename}</code>
               {pendingFiles.imageScript ? <> and <code>{pendingFiles.imageFilename}</code></> : null}
             </p>
           )}

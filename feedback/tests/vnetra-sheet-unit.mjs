@@ -1,7 +1,7 @@
 /**
- * Tests for the vNetra bulk-upload CSV.
+ * Tests for the vNetra bulk-upload spreadsheet.
  *
- *   node tests/vnetra-csv-unit.mjs
+ *   node tests/vnetra-sheet-unit.mjs
  *
  * This file sets prices and tax rates on a live vending catalogue, so the tax
  * split is the part that matters. The cases below are the ones the Python
@@ -10,8 +10,9 @@
  */
 
 import {
-  impliedTotal, splitTotal, pctOf, rupees, rowFor, toCsv, CSV_COLUMNS,
-} from '../shared/vnetraCsv.js'
+  impliedTotal, splitTotal, pctOf, priceOf, hsnCell, rowFor, COLUMNS, SHEET_NAME,
+} from '../shared/vnetraSheet.js'
+import { buildXlsx, colName, crc32 } from '../shared/xlsx.js'
 
 let pass = 0
 let fail = 0
@@ -66,14 +67,25 @@ eq('a zero taxable value is not divided by', pctOf(100, 0), null)
 /* --------------------------------------------------------------- money --- */
 section('prices')
 
-eq('whole rupees keep two decimals', rupees(3500), '35.00')
-eq('paise survive',                  rupees(1250), '12.50')
-eq('zero is a price, not blank',     rupees(0), '0.00')
-eq('missing is blank, never 0.00',   rupees(null), '')
-eq('undefined is blank too',         rupees(undefined), '')
-eq('an empty string is blank',       rupees(''), '')
-eq('a zero MRP product carries no price rather than a free one',
+// Numbers, not formatted strings: the template's own price cells are numeric.
+eq('whole rupees are a number',  priceOf(3500), 35)
+eq('paise survive',              priceOf(1250), 12.5)
+eq('zero is a price',            priceOf(0), 0)
+
+// Number(null) and Number('') are both 0, so without a guard a product with no
+// MRP is priced at zero -- and zero on a vending machine means free.
+eq('missing is blank, never 0',  priceOf(null), '')
+eq('undefined is blank too',     priceOf(undefined), '')
+eq('an empty string is blank',   priceOf(''), '')
+eq('a product with no MRP carries no price rather than a free one',
   rowFor({ displayProductId: 'AT1AAA0000001', name: 'No price' }).row['Selling Price'], '')
+
+// HSN codes carry meaningful leading zeros -- 0901 is coffee. Numeric is the
+// template's shape, but 0901 as a number is 901, a different code entirely.
+eq('an ordinary HSN is numeric',            hsnCell('1905'), 1905)
+eq('a leading zero keeps it text',          hsnCell('0901'), '0901')
+eq('blank stays blank',                     hsnCell(''), '')
+eq('something non-numeric stays as typed',  hsnCell('19-05'), '19-05')
 
 /* ----------------------------------------------------------------- rows --- */
 section('a product becomes a row')
@@ -83,36 +95,54 @@ const { row, flag, hsn } = rowFor({
   category: 'Snacks', mrpPaise: 3500, taxablePaise: 2966, hsn: '1905',
 })
 eq('the code is upper-cased', row['Product Code'], 'AT1NEW0000001')
-eq('price is the MRP, the figure the tax was derived against', row['Selling Price'], '35.00')
+eq('price is the MRP, the figure the tax was derived against', row['Selling Price'], 35)
 eq('name doubles as the description', row['Product Description'], 'New Thing 40g')
-eq('HSN comes across', [row['HSN Code'], hsn], ['1905', '1905'])
+eq('HSN comes across as a number', [row['HSN Code'], hsn], [1905, '1905'])
 eq('nothing to flag here', flag, null)
 
 // Stock in vNetra comes from loading a machine. Inventing an opening quantity
 // would put phantom stock on the books for every product in the file.
 eq('stock quantity is zero, deliberately', row['Stock Qty'], 0)
 
-/* ------------------------------------------------------------------ csv --- */
+/* ----------------------------------------------------------------- xlsx -- */
 section('the file itself')
 
-const csv = toCsv([
-  rowFor({ displayProductId: 'AT1AAA0000001', name: 'Plain', mrpPaise: 1000, taxablePaise: 893 }).row,
-  rowFor({ displayProductId: 'AT1BBB0000002', name: 'Lay\'s "Magic", Masala', mrpPaise: 2000, taxablePaise: 1905 }).row,
-])
-const lines = csv.trim().split('\r\n')
+eq('column letters', [colName(1), colName(12), colName(26), colName(27)],
+  ['A', 'L', 'Z', 'AA'])
 
-eq('header first, in template order', lines[0],
-  CSV_COLUMNS.map((c) => `"${c}"`).join(','))
-eq('one line per product', lines.length, 3)
+// A known CRC-32, so a broken table shows up here rather than as a file Excel
+// silently refuses to open.
+eq('crc32 of "123456789"', crc32(new TextEncoder().encode('123456789')), 0xcbf43926)
 
-// A product name with a comma in it would shift every later column by one if
-// the field were not quoted -- so the prices would land in the wrong columns.
-eq('a comma in a name does not shift the columns',
-  lines[2].split('","').length, CSV_COLUMNS.length)
-// Only the double quote is doubled; the apostrophe is an ordinary character.
-eq('an embedded quote is doubled', lines[2].includes('Lay\'s ""Magic"", Masala'), true)
-eq('CRLF line endings', csv.includes('\r\n'), true)
-eq('and a trailing newline, or importers drop the last row', csv.endsWith('\r\n'), true)
+const bytes = buildXlsx({
+  sheetName: SHEET_NAME,
+  columns: COLUMNS,
+  rows: [
+    rowFor({ displayProductId: 'AT1AAA0000001', name: 'Plain', mrpPaise: 1000,
+             taxablePaise: 893, hsn: '1905' }).row,
+    rowFor({ displayProductId: 'AT1BBB0000002', name: 'Lay\'s "Magic", Masala & <co>',
+             mrpPaise: 2000, taxablePaise: 1905, hsn: '0901' }).row,
+  ],
+})
+
+eq('it is a zip', [bytes[0], bytes[1], bytes[2], bytes[3]], [0x50, 0x4b, 0x03, 0x04])
+
+const text = new TextDecoder().decode(bytes)
+eq('[Content_Types].xml is the first entry, as the format requires',
+  text.indexOf('[Content_Types].xml') < text.indexOf('xl/workbook.xml'), true)
+eq('the sheet is named for the template', text.includes('name="Products"'), true)
+
+// XML, not CSV: a quote or comma in a name is harmless, but a bare & or < is
+// not -- it makes the part unparseable and Excel reports the file as corrupt.
+eq('ampersands and angle brackets are escaped',
+  text.includes('&amp;') && text.includes('&lt;co&gt;'), true)
+eq('a raw ampersand never reaches the xml',
+  /&(?!amp;|lt;|gt;|quot;|apos;|#)/.test(text.slice(text.indexOf('sheetData'))), false)
+
+// Numbers are numeric cells; text is an inline string. The importer cares.
+eq('the price is a numeric cell', /<c r="E2"><v>10<\/v><\/c>/.test(text), true)
+eq('the product code is text', text.includes('<c r="A2" t="inlineStr">'), true)
+
 
 console.log(`\n══ ${pass} passed, ${fail} failed ══`)
 process.exit(fail ? 1 : 0)
