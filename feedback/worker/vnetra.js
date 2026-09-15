@@ -20,8 +20,16 @@ import { VliteError, getProducts } from './vlite.js'
  * to it needs credentials and a document schema we do not hold.
  */
 
-/** vNetra and VLite product codes: AT1 + 3 letters + 7 digits. */
-export const CODE_RE = /^AT1[A-Z]{3}\d{7}$/
+/**
+ * vNetra and VLite product codes: AT1 + a 3-character brand segment + 7 digits.
+ *
+ * The brand segment is ALPHANUMERIC, not alphabetic. It is derived from the
+ * product name, so "7 Up" yields AT17UP0022857. An [A-Z]{3} pattern looks
+ * right, passes on 227 of the 229 products, and silently drops 7 Up from every
+ * snapshot -- which then reads as "vNetra is missing 7 Up" and invites a
+ * duplicate push.
+ */
+export const CODE_RE = /^AT1[A-Z0-9]{3}\d{7}$/
 
 /**
  * Codes are compared case- and whitespace-insensitively, and nothing else is

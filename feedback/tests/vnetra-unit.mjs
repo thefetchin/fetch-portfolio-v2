@@ -35,6 +35,17 @@ eq('a real code matches the format', CODE_RE.test('AT1CAD0021943'), true)
 eq('too few digits is refused',      CODE_RE.test('AT1CAD002194'), false)
 eq('a different prefix is refused',  CODE_RE.test('XX1CAD0021943'), false)
 
+// The brand segment is ALPHANUMERIC. It comes from the product name, so
+// "7 Up" gives AT17UP0022857 -- and an [A-Z]{3} pattern passes on 227 of the
+// 229 real products while silently dropping these two from every snapshot,
+// which then reads as "vNetra is missing 7 Up" and invites a duplicate push.
+eq('7 Up, whose brand segment starts with a digit, is a valid code',
+  [CODE_RE.test('AT17UP0022857'), CODE_RE.test('AT17UP0035843')], [true, true])
+eq('an all-digit brand segment is still a valid code',
+  CODE_RE.test('AT11230021943'), true)
+eq('letters in the numeric tail are still refused',
+  CODE_RE.test('AT1CADX021943'), false)
+
 // Leading zeros and punctuation are NOT normalised away: doing so would let
 // two genuinely different codes collide, which is the one failure that matters.
 eq('a code differing only in a zero stays different',

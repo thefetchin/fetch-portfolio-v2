@@ -30,7 +30,9 @@ const until = async (fn, timeout = 15000, step = 200) => {
 
 const rows     = () => [...document.querySelectorAll('tr')]
 const cellsOf  = (r) => [...r.querySelectorAll('td')].map((c) => c.textContent.trim())
-const codeOf   = (r) => cellsOf(r).find((t) => /^AT1[A-Z]{3}\d{7}$/.test(t))
+// Alphanumeric brand segment: "7 Up" gives AT17UP0022857, which an
+// [A-Z]{3} pattern would silently skip.
+const codeOf   = (r) => cellsOf(r).find((t) => /^AT1[A-Z0-9]{3}\d{7}$/.test(t))
 const hasThumb = (r) => (r.querySelector('img')?.src || '').includes('products%2Fthumbs')
 
 /** The product name is the longest cell that is not the code and not a number
