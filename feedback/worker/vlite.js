@@ -266,6 +266,10 @@ export async function getProducts(env, { pageSize = 100, maxPages = 40, activeOn
         taxablePaise: Number.isFinite(Number(p.taxablePriceS)) ? Number(p.taxablePriceS) : null,
         costPaise: Number.isFinite(Number(p.cost)) ? Number(p.cost) : null,
         gstBps: deriveGstBps(p),
+        // Product artwork as VLite stores it. May be an absolute URL or a path
+        // relative to the portal, so it is passed through untouched and
+        // resolved by whoever consumes it.
+        image: typeof p.image === 'string' && p.image.trim() ? p.image.trim() : null,
         brand: p['sub_category.category.brand.name'] ?? null,
         category: p['sub_category.category.name'] ?? null,
         subCategory: p['sub_category.name'] ?? null,

@@ -82,6 +82,7 @@ export async function listVliteCatalogue(env, json) {
       // Flagged rather than hidden: a product with no barcode cannot be scanned,
       // which is worth knowing before someone tries to at goods-in.
       missingBarcode: !r.barcode,
+      hasImage: !!r.image,
     }
   })
 
