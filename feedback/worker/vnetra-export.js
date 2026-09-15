@@ -144,10 +144,9 @@ export async function generateExport(env, idem, actor, json, validationError, sh
     sheetName: SHEET_NAME,
     rows,
     filename: `vnetra-products-${exportId}.xlsx`,
-    imageScript: Object.keys(imageMap).length
-      ? buildImageScript({ map: imageMap, base: IMAGE_BASE, generatedAt })
-      : null,
-    imageFilename: `vnetra-image-sync-${exportId}.js`,
+    // The image script is fetched separately -- a browser drops the second of
+    // two downloads fired from one click, which silently lost it before.
+    imageCount: Object.keys(imageMap).length,
     summary: {
       vlite: products.length,
       generated: rows.length,
@@ -234,6 +233,75 @@ export async function settleExport(env, idem, actor, json, validationError, expo
     message: status === 'confirmed'
       ? `${n} recorded as in vNetra. Future exports will leave them out.`
       : `Export discarded. Those ${n} go back into the next one.`,
+  })
+}
+
+/**
+ * Rebuilds the image script for an export that already exists.
+ *
+ * It is a separate request, not a second file handed back by generate(),
+ * because a browser suppresses the second of two downloads fired from one
+ * click -- the script was built, handed to an anchor, and silently dropped.
+ * One click, one file.
+ *
+ * The image paths are not stored with the export; they are read from VLite
+ * again here. That costs a round trip and means the script always points at
+ * whatever artwork VLite holds now, which is the version worth having.
+ */
+export async function exportImageScript(env, json, exportId) {
+  const exp = await env.DB.prepare(
+    'SELECT export_id, product_count FROM vnetra_exports WHERE export_id = ?1'
+  ).bind(exportId).first()
+  if (!exp) return json({ error: 'not_found', message: 'No such export.' }, 404)
+
+  const lines = await env.DB.prepare(
+    'SELECT code, name FROM vnetra_export_lines WHERE export_id = ?1'
+  ).bind(exportId).all()
+  const wanted = new Map((lines.results || []).map((l) => [l.code, l.name]))
+
+  let products
+  try {
+    products = await getProducts(env)
+  } catch (err) {
+    if (err instanceof VliteError) {
+      return json({ error: err.code || 'vlite_unavailable', message: err.message }, err.status || 502)
+    }
+    throw err
+  }
+
+  const map = {}
+  const seen = new Set()
+  for (const p of products) {
+    const code = normaliseCode(p.displayProductId)
+    if (!code || !wanted.has(code)) continue
+    seen.add(code)
+    if (p.image) map[code] = p.image
+  }
+
+  const withImage = Object.keys(map).length
+  const missing = [...wanted.keys()]
+    .filter((c) => !map[c])
+    .map((c) => ({ code: c, name: wanted.get(c) || null, why: seen.has(c) ? 'no image in VLite' : 'gone from VLite' }))
+
+  if (!withImage) {
+    return json({
+      ok: true,
+      count: 0,
+      missing,
+      message: 'None of these products has an image in VLite, so there is nothing to copy.',
+    })
+  }
+
+  const generatedAt = new Date().toISOString().slice(0, 16).replace('T', ' ') + ' UTC'
+  return json({
+    ok: true,
+    count: withImage,
+    missing,
+    filename: `vnetra-image-sync-${exportId}.js`,
+    imageScript: buildImageScript({ map, base: IMAGE_BASE, generatedAt }),
+    message: missing.length
+      ? `${withImage} of ${wanted.size} have images in VLite.`
+      : `${withImage} products, all with images.`,
   })
 }
 

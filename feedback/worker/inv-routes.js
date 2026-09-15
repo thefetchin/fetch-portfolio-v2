@@ -15,7 +15,7 @@ import {
 } from './inv-outward.js'
 import { importVliteProducts, listVliteCatalogue } from './inv-catalogue.js'
 import { ingestVnetraSnapshot, compareWithVnetra } from './vnetra.js'
-import { generateExport, settleExport, listExports } from './vnetra-export.js'
+import { generateExport, settleExport, listExports, exportImageScript } from './vnetra-export.js'
 import { importSalesChunk, salesReport, validateSupplierPrice } from './inv-sales.js'
 import { requireRole } from './auth.js'
 import {
@@ -807,6 +807,11 @@ export async function routeInventory(request, env, auth, idem, json) {
     return compareWithVnetra(env, json)
   }
 
+  const vnxImgMatch = path.match(/^\/api\/inv\/vnetra\/exports\/([\w-]+)\/image-script$/)
+  if (vnxImgMatch && method === 'GET') {
+    const d = stockOnly(); if (d) return json(d, 403)
+    return exportImageScript(env, json, vnxImgMatch[1])
+  }
   const vnxMatch = path.match(/^\/api\/inv\/vnetra\/exports\/([\w-]+)$/)
   if (vnxMatch && method === 'PATCH') {
     const d = stockOnly(); if (d) { await idem.abandon(); return json(d, 403) }

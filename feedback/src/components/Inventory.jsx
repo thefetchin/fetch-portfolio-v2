@@ -1685,13 +1685,25 @@ function VnetraView({ run, say, oops, busy }) {
     const xlsx = buildXlsx({ sheetName: r.sheetName, columns: r.columns, rows: r.rows })
     downloadBytes(r.filename, xlsx,
       'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
-    if (r.imageScript) download(r.imageFilename, r.imageScript, 'text/javascript')
     setPendingFiles(r)
     say(
       `${plural(r.summary.generated, 'product')} ready. Upload the CSV to vNetra, then say `
       + 'whether it worked — nothing is recorded as added until you do.'
     )
     await loadExports()
+  })
+
+  /* A separate click, deliberately. A browser suppresses the second of two
+     downloads fired from one click, so bundling this with Generate meant the
+     script was built, handed to an anchor, and silently dropped. */
+  const getImageScript = (exportId) => run(async () => {
+    const r = await api(`/api/inv/vnetra/exports/${exportId}/image-script`)
+    if (!r.count) { say(r.message); return }
+    download(r.filename, r.imageScript, 'text/javascript')
+    say(
+      `${r.message} Run it in the console on a signed-in vnetra.in product list, `
+      + 'after the spreadsheet has been uploaded.'
+    )
   })
 
   const settle = (exportId, status) => run(async () => {
@@ -1787,18 +1799,30 @@ function VnetraView({ run, say, oops, busy }) {
             {pending.created_at ? ` ${fmtWhen(pending.created_at)}` : ''} — not yet recorded as added.
           </strong>
           <p>
-            Upload the spreadsheet to vNetra{pending.image_count
-              ? `, then run the image script for the ${plural(pending.image_count, 'product')} with images`
-              : ''}. Nothing is excluded from the next export until you say the
-            upload worked, so a rejected file costs you nothing.
+            Upload the spreadsheet to vNetra. Nothing is excluded from the next
+            export until you say the upload worked, so a rejected file costs
+            you nothing.
+          </p>
+          <p>
+            {pending.image_count
+              ? `${plural(pending.image_count, 'product')} have an image in VLite. `
+                + 'Get the script once the products are in vNetra — it finds them by code.'
+              : 'None of these has an image in VLite, so there is no image script.'}
           </p>
           {pendingFiles?.exportId === pending.export_id && (
             <p className="inv-hint">
-              Files downloaded: <code>{pendingFiles.filename}</code>
-              {pendingFiles.imageScript ? <> and <code>{pendingFiles.imageFilename}</code></> : null}
+              Downloaded: <code>{pendingFiles.filename}</code>
             </p>
           )}
           <div className="inv-actions">
+            {!!pending.image_count && (
+              <button
+                type="button" className="inv-ghost" disabled={busy}
+                onClick={() => getImageScript(pending.export_id)}
+              >
+                Image script ({pending.image_count})
+              </button>
+            )}
             <button
               type="button" className="inv-primary" disabled={busy}
               onClick={() => settle(pending.export_id, 'confirmed')}
@@ -1822,7 +1846,7 @@ function VnetraView({ run, say, oops, busy }) {
           <div className="inv-table-wrap">
             <table className="inv-table">
               <thead>
-                <tr><th>When</th><th>Products</th><th>Images</th><th>Result</th><th>By</th></tr>
+                <tr><th>When</th><th>Products</th><th>Images</th><th>Result</th><th>By</th><th /></tr>
               </thead>
               <tbody>
                 {settled.map((e) => (
@@ -1836,6 +1860,16 @@ function VnetraView({ run, say, oops, busy }) {
                       </span>
                     </td>
                     <td>{e.created_by || '—'}</td>
+                    <td>
+                      {e.status === 'confirmed' && !!e.image_count && (
+                        <button
+                          type="button" className="inv-ghost" disabled={busy}
+                          onClick={() => getImageScript(e.export_id)}
+                        >
+                          Image script
+                        </button>
+                      )}
+                    </td>
                   </tr>
                 ))}
               </tbody>
