@@ -504,3 +504,9 @@
 .inv-badge-linked  { background: rgba(22, 163, 74, 0.12); color: #15803d; }
 .inv-badge-match   { background: rgba(245, 158, 11, 0.16); color: #b45309; }
 .inv-warn-cell     { color: #b45309; font-size: 0.78rem; }
+
+/* A file input styled as a button. The real input is hidden inside the label
+   rather than removed, so it stays keyboard-reachable and the label's own
+   click-through does the work. */
+.inv-file { position: relative; overflow: hidden; cursor: pointer; }
+.inv-file input[type="file"] { position: absolute; inset: 0; opacity: 0; cursor: pointer; }

@@ -38,6 +38,16 @@ const fmtDate = (iso) => {
     : d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
 }
 
+/** A snapshot is only meaningful with the time of day on it, so this carries
+ *  more than fmtDate, which is for business dates. */
+const fmtWhen = (iso) => {
+  if (!iso) return '—'
+  const d = new Date(String(iso).replace(' ', 'T') + 'Z')
+  return Number.isNaN(d.getTime())
+    ? iso
+    : d.toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })
+}
+
 /** Expiry urgency, used for the colour bands. */
 const band = (days, expired) => {
   if (expired) return 'exp'
@@ -87,6 +97,7 @@ const SUBVIEWS = [
   { key: 'prices', label: 'Supplier prices' },
   { key: 'sales',  label: 'Sales & margin' },
   { key: 'catalogue', label: 'Import from VLite' },
+  { key: 'vnetra', label: 'Compare with vNetra' },
 ]
 
 export default function Inventory() {
@@ -164,6 +175,7 @@ export default function Inventory() {
       {view === 'prices' && <PricesView {...shared} />}
       {view === 'sales'  && <SalesView {...shared} />}
       {view === 'catalogue' && <CatalogueView {...shared} />}
+      {view === 'vnetra' && <VnetraView {...shared} />}
     </section>
   )
 }
@@ -1583,6 +1595,202 @@ function SalesView({ run, say, oops, busy }) {
                 </tbody>
               </table>
             </div>
+          )}
+        </>
+      )}
+    </>
+  )
+}
+
+/* ======================================================= compare vNetra === */
+
+/**
+ * VLite and vNetra hold the same catalogue, and drift between them is only
+ * visible by putting the two lists side by side.
+ *
+ * The comparison joins on product code and nothing else. Both systems carry
+ * the same AT1... code for the same product, so the match is exact -- and a
+ * product whose code is missing is reported as unmatched rather than guessed
+ * at, because a wrong pairing here would push a product onto the wrong entry
+ * in a live vending catalogue.
+ */
+function VnetraView({ run, say, oops, busy }) {
+  const [result, setResult] = useState(null)
+  const [tab, setTab] = useState('missingInVnetra')
+
+  /**
+   * Loads a capture file produced by scripts/vnetra-capture-products.js.
+   *
+   * A file rather than a direct POST from vnetra.in: the inventory API sends
+   * no CORS headers on purpose -- it is cookie-authenticated, and opening it
+   * to other origins would be a genuine CSRF hole in this dashboard. The file
+   * also means the list can be eyeballed before it is sent.
+   */
+  const loadFile = (file) => run(async () => {
+    if (!file) return
+    let payload
+    try {
+      payload = JSON.parse(await file.text())
+    } catch {
+      throw { message: 'That file is not readable JSON. Re-run the capture script.' }
+    }
+    const products = Array.isArray(payload) ? payload : payload.products
+    if (!Array.isArray(products) || !products.length) {
+      throw { message: 'That file has no products in it.' }
+    }
+    const r = await api('/api/inv/vnetra/products', {
+      method: 'POST',
+      body: { source: 'browser_bridge', products },
+    })
+    setResult(null)
+    say(`${r.message} Press Compare to see the differences.`)
+  })
+
+  const compare = () => run(async () => {
+    const r = await api('/api/inv/vnetra/compare')
+    setResult(r)
+    if (!r.ready) say(r.message)
+    else say(`Compared ${r.summary.vlite} VLite products against ${r.summary.vnetra} in vNetra.`)
+  })
+
+  useEffect(() => { compare() }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const s = result?.summary
+  const BUCKETS = [
+    ['missingInVnetra', 'Missing from vNetra'],
+    ['missingInVlite', 'Only in vNetra'],
+    ['nameMismatch', 'Named differently'],
+    ['matched', 'Matched'],
+    ['noCode', 'No product code'],
+  ]
+  const rows = result?.[tab] || []
+
+  const copyCodes = () => {
+    const codes = rows.map((r) => r.code).filter(Boolean).join('\n')
+    navigator.clipboard?.writeText(codes)
+      .then(() => say(`Copied ${rows.length} codes.`))
+      .catch(() => oops({ message: 'Could not copy to the clipboard.' }))
+  }
+
+  return (
+    <>
+      <div className="inv-list-head">
+        <div>
+          <h3>VLite against vNetra</h3>
+          <p className="inv-hint">
+            Both systems hold the same catalogue and the same product codes.
+            This matches on the code alone — never on the name, because two
+            products whose names differ by a gram weight are different products.
+          </p>
+        </div>
+        <div className="inv-actions">
+          <label className="inv-ghost inv-file">
+            Load vNetra capture
+            <input
+              type="file" accept="application/json,.json"
+              onChange={(e) => { loadFile(e.target.files?.[0]); e.target.value = '' }}
+            />
+          </label>
+          <button type="button" className="inv-primary" onClick={compare} disabled={busy}>
+            {busy ? 'Working…' : 'Compare now'}
+          </button>
+        </div>
+      </div>
+
+      {result && !result.ready && (
+        <div className="inv-notice" role="status">
+          <strong>Nothing to compare against yet.</strong>
+          <p>
+            vNetra&apos;s catalogue has not been captured. Until it is, this cannot
+            tell the difference between &ldquo;vNetra is missing a product&rdquo; and
+            &ldquo;we have never seen vNetra&apos;s list&rdquo; — and guessing
+            would have someone pushing the whole catalogue in as duplicates.
+          </p>
+          <p>
+            Run <code>scripts/vnetra-capture-products.js</code> in the console on
+            a signed-in vnetra.in product list, then load the file it downloads
+            with the button above.
+          </p>
+        </div>
+      )}
+
+      {result?.ready && (
+        <>
+          {result.snapshot && (
+            <p className="inv-sub">
+              vNetra list captured {fmtWhen(result.snapshot.capturedAt)}
+              {result.snapshot.capturedBy ? ` by ${result.snapshot.capturedBy}` : ''}
+              {' · '}{result.snapshot.productCount} products.
+              {' '}This is a snapshot, not a live read.
+            </p>
+          )}
+
+          <div className="inv-stats">
+            <div className="inv-stat"><span>{s.vlite}</span><label>In VLite</label></div>
+            <div className="inv-stat"><span>{s.vnetra}</span><label>In vNetra</label></div>
+            <div className="inv-stat"><span>{s.matched}</span><label>Matched</label></div>
+            <div className={`inv-stat ${s.missingInVnetra ? 'inv-stat-warn' : ''}`}>
+              <span>{s.missingInVnetra}</span><label>Missing from vNetra</label>
+            </div>
+            <div className={`inv-stat ${s.nameMismatch ? 'inv-stat-warn' : ''}`}>
+              <span>{s.nameMismatch}</span><label>Named differently</label>
+            </div>
+            <div className={`inv-stat ${s.noCode ? 'inv-stat-warn' : ''}`}>
+              <span>{s.noCode}</span><label>No code</label>
+            </div>
+          </div>
+
+          <div className="inv-subtabs" role="tablist">
+            {BUCKETS.map(([key, label]) => (
+              <button
+                key={key} type="button" role="tab"
+                aria-selected={tab === key}
+                className={`inv-subtab ${tab === key ? 'is-active' : ''}`}
+                onClick={() => setTab(key)}
+              >
+                {label} ({result[key]?.length ?? 0})
+              </button>
+            ))}
+          </div>
+
+          {!rows.length ? (
+            <p className="inv-empty">Nothing in this group.</p>
+          ) : (
+            <>
+              <div className="inv-actions">
+                <button type="button" className="inv-ghost" onClick={copyCodes}>
+                  Copy {rows.length} codes
+                </button>
+              </div>
+              <div className="inv-table-wrap">
+                <table className="inv-table">
+                  <thead>
+                    <tr>
+                      <th>Code</th>
+                      <th>{tab === 'nameMismatch' ? 'VLite name' : 'Name'}</th>
+                      {tab === 'nameMismatch' && <th>vNetra name</th>}
+                      {tab === 'missingInVnetra' && <th>MRP</th>}
+                      {tab === 'missingInVnetra' && <th>Image</th>}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {rows.map((r, i) => (
+                      <tr key={r.code || `nocode-${i}`}>
+                        <td className="inv-mono">{r.code || '—'}</td>
+                        <td>{r.name || r.vliteName || '—'}</td>
+                        {tab === 'nameMismatch' && <td>{r.vnetraName || '—'}</td>}
+                        {tab === 'missingInVnetra' && (
+                          <td>{r.mrpPaise != null ? rupees(r.mrpPaise) : '—'}</td>
+                        )}
+                        {tab === 'missingInVnetra' && (
+                          <td>{r.hasImage ? 'yes' : 'no'}</td>
+                        )}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </>
           )}
         </>
       )}

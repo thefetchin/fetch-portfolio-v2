@@ -14,6 +14,7 @@ import {
   runDetail,
 } from './inv-outward.js'
 import { importVliteProducts, listVliteCatalogue } from './inv-catalogue.js'
+import { ingestVnetraSnapshot, compareWithVnetra } from './vnetra.js'
 import { importSalesChunk, salesReport, validateSupplierPrice } from './inv-sales.js'
 import { requireRole } from './auth.js'
 import {
@@ -781,6 +782,20 @@ export async function routeInventory(request, env, auth, idem, json) {
   if (path === '/api/inv/vlite/products/import' && method === 'POST') {
     const d = stockOnly(); if (d) { await idem.abandon(); return json(d, 403) }
     return importVliteProducts(env, idem, actor, json, validationError, shortId)
+  }
+
+  // ---- vNetra, the other system holding the same catalogue --------------
+  // Both systems are Vendekin's and both carry the same product code, so the
+  // comparison joins on that and nothing else. We hold a COPY of vNetra's
+  // list rather than reading it live: it is a third party's Firebase project,
+  // and a stamped snapshot is honest about what we actually know and when.
+  if (path === '/api/inv/vnetra/products' && method === 'POST') {
+    const d = stockOnly(); if (d) { await idem.abandon(); return json(d, 403) }
+    return ingestVnetraSnapshot(env, idem, actor, json, validationError, shortId)
+  }
+  if (path === '/api/inv/vnetra/compare' && method === 'GET') {
+    const d = stockOnly(); if (d) return json(d, 403)
+    return compareWithVnetra(env, json)
   }
 
   // ---- sales, and the margin on them -----------------------------------
