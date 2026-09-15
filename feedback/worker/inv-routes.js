@@ -15,6 +15,7 @@ import {
 } from './inv-outward.js'
 import { importVliteProducts, listVliteCatalogue } from './inv-catalogue.js'
 import { ingestVnetraSnapshot, compareWithVnetra } from './vnetra.js'
+import { generateExport, settleExport, listExports } from './vnetra-export.js'
 import { importSalesChunk, salesReport, validateSupplierPrice } from './inv-sales.js'
 import { requireRole } from './auth.js'
 import {
@@ -793,9 +794,23 @@ export async function routeInventory(request, env, auth, idem, json) {
     const d = stockOnly(); if (d) { await idem.abandon(); return json(d, 403) }
     return ingestVnetraSnapshot(env, idem, actor, json, validationError, shortId)
   }
+  if (path === '/api/inv/vnetra/exports' && method === 'GET') {
+    const d = stockOnly(); if (d) return json(d, 403)
+    return listExports(env, json)
+  }
+  if (path === '/api/inv/vnetra/exports' && method === 'POST') {
+    const d = stockOnly(); if (d) { await idem.abandon(); return json(d, 403) }
+    return generateExport(env, idem, actor, json, validationError, shortId)
+  }
   if (path === '/api/inv/vnetra/compare' && method === 'GET') {
     const d = stockOnly(); if (d) return json(d, 403)
     return compareWithVnetra(env, json)
+  }
+
+  const vnxMatch = path.match(/^\/api\/inv\/vnetra\/exports\/([\w-]+)$/)
+  if (vnxMatch && method === 'PATCH') {
+    const d = stockOnly(); if (d) { await idem.abandon(); return json(d, 403) }
+    return settleExport(env, idem, actor, json, validationError, vnxMatch[1])
   }
 
   // ---- sales, and the margin on them -----------------------------------

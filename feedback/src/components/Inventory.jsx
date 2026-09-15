@@ -38,6 +38,8 @@ const fmtDate = (iso) => {
     : d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
 }
 
+const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`
+
 /** A snapshot is only meaningful with the time of day on it, so this carries
  *  more than fmtDate, which is for business dates. */
 const fmtWhen = (iso) => {
@@ -1646,6 +1648,49 @@ function VnetraView({ run, say, oops, busy }) {
     say(`${r.message} Press Compare to see the differences.`)
   })
 
+  /* ---- the bulk upload, and what has already gone in ---- */
+
+  const [exports_, setExports] = useState(null)
+  const [pendingFiles, setPendingFiles] = useState(null)
+
+  const loadExports = useCallback(async () => {
+    try { setExports(await api('/api/inv/vnetra/exports')) } catch (e) { oops(e) }
+  }, [oops])
+
+  useEffect(() => { loadExports() }, [loadExports])
+
+  const download = (name, text, type = 'text/plain') => {
+    const url = URL.createObjectURL(new Blob([text], { type: `${type};charset=utf-8` }))
+    const a = document.createElement('a')
+    a.href = url
+    a.download = name
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
+  const generate = () => run(async () => {
+    const r = await api('/api/inv/vnetra/exports', { method: 'POST', body: {} })
+    if (r.empty) { setPendingFiles(null); say(r.message); await loadExports(); return }
+
+    download(r.csvFilename, r.csv, 'text/csv')
+    if (r.imageScript) download(r.imageFilename, r.imageScript, 'text/javascript')
+    setPendingFiles(r)
+    say(
+      `${plural(r.summary.generated, 'product')} ready. Upload the CSV to vNetra, then say `
+      + 'whether it worked — nothing is recorded as added until you do.'
+    )
+    await loadExports()
+  })
+
+  const settle = (exportId, status) => run(async () => {
+    const r = await api(`/api/inv/vnetra/exports/${exportId}`, {
+      method: 'PATCH', body: { status },
+    })
+    setPendingFiles(null)
+    say(r.message)
+    await loadExports()
+  })
+
   const compare = () => run(async () => {
     const r = await api('/api/inv/vnetra/compare')
     setResult(r)
@@ -1656,6 +1701,10 @@ function VnetraView({ run, say, oops, busy }) {
   useEffect(() => { compare() }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   const s = result?.summary
+  const counts = exports_?.counts
+  const pending = (exports_?.exports || []).find((e) => e.status === 'pending') || null
+  const hasPending = !!pending
+  const settled = (exports_?.exports || []).filter((e) => e.status !== 'pending')
   const BUCKETS = [
     ['missingInVnetra', 'Missing from vNetra'],
     ['missingInVlite', 'Only in vNetra'],
@@ -1691,11 +1740,97 @@ function VnetraView({ run, say, oops, busy }) {
               onChange={(e) => { loadFile(e.target.files?.[0]); e.target.value = '' }}
             />
           </label>
-          <button type="button" className="inv-primary" onClick={compare} disabled={busy}>
-            {busy ? 'Working…' : 'Compare now'}
+          <button type="button" className="inv-ghost" onClick={compare} disabled={busy}>
+            Compare
+          </button>
+          <button type="button" className="inv-primary" onClick={generate} disabled={busy || hasPending}>
+            {busy ? 'Working…' : 'Generate bulk upload'}
           </button>
         </div>
       </div>
+
+      {/* ---- what vNetra is known to have ---- */}
+      {counts && (
+        <div className="inv-stats">
+          <div className="inv-stat">
+            <span>{counts.known ?? 0}</span><label>Known in vNetra</label>
+          </div>
+          <div className="inv-stat">
+            <span>{counts.captured ?? 0}</span><label>Seen in a capture</label>
+          </div>
+          <div className="inv-stat">
+            <span>{counts.uploaded ?? 0}</span><label>Added by upload</label>
+          </div>
+          <div className={`inv-stat ${counts.pending ? 'inv-stat-warn' : ''}`}>
+            <span>{counts.pending ?? 0}</span><label>Awaiting confirmation</label>
+          </div>
+        </div>
+      )}
+
+      {/* ---- a generated file waiting to be confirmed ---- */}
+      {pending && (
+        <div className="inv-notice inv-pending" role="status">
+          <strong>
+            {plural(pending.product_count, 'product')} generated
+            {pending.created_at ? ` ${fmtWhen(pending.created_at)}` : ''} — not yet recorded as added.
+          </strong>
+          <p>
+            Upload the CSV to vNetra{pending.image_count
+              ? `, then run the image script for the ${plural(pending.image_count, 'product')} with images`
+              : ''}. Nothing is excluded from the next export until you say the
+            upload worked, so a rejected file costs you nothing.
+          </p>
+          {pendingFiles?.exportId === pending.export_id && (
+            <p className="inv-hint">
+              Files downloaded: <code>{pendingFiles.csvFilename}</code>
+              {pendingFiles.imageScript ? <> and <code>{pendingFiles.imageFilename}</code></> : null}
+            </p>
+          )}
+          <div className="inv-actions">
+            <button
+              type="button" className="inv-primary" disabled={busy}
+              onClick={() => settle(pending.export_id, 'confirmed')}
+            >
+              The upload worked
+            </button>
+            <button
+              type="button" className="inv-ghost" disabled={busy}
+              onClick={() => settle(pending.export_id, 'discarded')}
+            >
+              It failed — put them back
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ---- past uploads ---- */}
+      {!!settled.length && (
+        <details className="inv-details">
+          <summary>Past uploads ({settled.length})</summary>
+          <div className="inv-table-wrap">
+            <table className="inv-table">
+              <thead>
+                <tr><th>When</th><th>Products</th><th>Images</th><th>Result</th><th>By</th></tr>
+              </thead>
+              <tbody>
+                {settled.map((e) => (
+                  <tr key={e.export_id}>
+                    <td>{fmtWhen(e.created_at)}</td>
+                    <td className="inv-num">{e.product_count}</td>
+                    <td className="inv-num">{e.image_count}</td>
+                    <td>
+                      <span className={`inv-badge ${e.status === 'confirmed' ? '' : 'is-off'}`}>
+                        {e.status === 'confirmed' ? 'Uploaded' : 'Discarded'}
+                      </span>
+                    </td>
+                    <td>{e.created_by || '—'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </details>
+      )}
 
       {result && !result.ready && (
         <div className="inv-notice" role="status">

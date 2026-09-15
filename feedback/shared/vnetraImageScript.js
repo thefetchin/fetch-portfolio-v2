@@ -1,4 +1,13 @@
-/* =====================================================================
+/**
+ * The console script that copies product images from VLite into vNetra.
+ *
+ * Generated for one export, carrying the map for exactly those products. The
+ * template lives here, in one place, so the panel is the only thing that
+ * produces it -- two copies of a 170-line script would drift and nobody would
+ * notice until a run silently did nothing.
+ */
+
+const TEMPLATE = `/* =====================================================================
    vNetra ← VLite product images
    =====================================================================
    GENERATED FILE — do not edit by hand.
@@ -108,7 +117,7 @@ S.processOne = async (code) => {
       if (!r.ok) throw new Error('image HTTP ' + r.status);
       return r.blob();
     });
-    const isJpg = /\.jpe?g$/i.test(path);
+    const isJpg = /\\.jpe?g$/i.test(path);
     const dt = new DataTransfer();
     dt.items.add(new File([blob], code + (isJpg ? '.jpg' : '.png'),
       { type: isJpg ? 'image/jpeg' : 'image/png' }));
@@ -118,7 +127,7 @@ S.processOne = async (code) => {
     await until(() => [...document.querySelectorAll('img')].some((i) => i.src.startsWith('blob:')), 15000);
     await sleep(350);
 
-    const upd = [...document.querySelectorAll('button')].find((b) => /^\s*Update\s*$/i.test(b.textContent));
+    const upd = [...document.querySelectorAll('button')].find((b) => /^\\s*Update\\s*$/i.test(b.textContent));
     if (!upd) throw new Error('no Update button');
     upd.click();
 
@@ -187,3 +196,12 @@ console.log(CODES.length + ' products in this run, matched by product code.');
 console.log('Stop anytime with:  __imgSync.stop = true');
 S.runAll();
 })();
+`
+
+export function buildImageScript({ map, base, generatedAt }) {
+  return TEMPLATE
+    .replace('__MAP__', JSON.stringify(map, null, 2))
+    .replace('__IMAGE_BASE__', base)
+    .replace('__GENERATED_AT__', generatedAt)
+    .replace('__COUNT__', String(Object.keys(map).length))
+}

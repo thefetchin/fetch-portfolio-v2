@@ -510,3 +510,22 @@
    click-through does the work. */
 .inv-file { position: relative; overflow: hidden; cursor: pointer; }
 .inv-file input[type="file"] { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+
+/* A generated upload waiting to be confirmed. Amber rather than green: it is
+   an open loop, not a success. */
+.inv-pending {
+  background: rgba(245, 158, 11, 0.09);
+  border-color: rgba(245, 158, 11, 0.35);
+  color: #92400e;
+}
+.inv-pending p { margin: 0.4rem 0 0; font-size: 0.88rem; line-height: 1.55; }
+.inv-pending .inv-actions { margin-top: 0.85rem; }
+.inv-pending code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.82rem;
+}
+
+.inv-details { font-size: 0.9rem; }
+.inv-details summary { cursor: pointer; color: var(--ink-500); padding: 0.4rem 0; }
+.inv-details[open] summary { margin-bottom: 0.5rem; }
+.inv-badge.is-off { background: var(--ink-100); color: var(--ink-500); }

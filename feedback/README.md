@@ -272,3 +272,55 @@ Two things are owed to the people on this list and are not built yet:
 by Pod and status, opts someone out, and exports CSV — with the consent date and
 wording in the export, because a bare column of phone numbers in a spreadsheet
 is the format in which consent gets forgotten.
+
+## vNetra bulk uploads
+
+`admin.thefetch.in` → Inventory → **Compare with vNetra**.
+
+**Generate bulk upload** pulls the VLite catalogue, leaves out everything
+vNetra is already known to have, and downloads two files: the bulk CSV and a
+console script that adds those products' images once the CSV is in.
+
+### Why an upload is not recorded until you confirm it
+
+Generating a file does not mark anything as added. The export sits pending
+until someone presses **The upload worked**.
+
+Marking at generation time would mean a rejected CSV silently excluded those
+products from every future export — they would never be uploaded, and nothing
+would ever say so. That failure is invisible and permanent, which is the worst
+shape a bug can have. Pressing **It failed** puts them straight back into the
+next export.
+
+Products in a pending export are still excluded from a new one, so pressing
+Generate twice cannot hand you the same products in two files.
+
+### Two kinds of knowledge
+
+`vnetra_products.origin` says how we know vNetra has a product:
+
+| origin | |
+|---|---|
+| `capture` | read off vNetra's own product list — **observed** |
+| `bulk_upload` | we generated it and someone confirmed the upload — **asserted** |
+
+A capture overwrites an assertion, because one of them was actually seen. The
+229 products uploaded before this existed were seeded as `bulk_upload`; run
+`scripts/vnetra-capture-products.js` and load the file to replace that with
+what is really there.
+
+### The CSV format
+
+Columns come from the products.xlsx bulk template and live in
+`shared/vnetraCsv.js` — the single place to correct them if an upload is
+rejected. Two things in there are deliberate:
+
+* **Stock Qty is 0.** Stock in vNetra comes from loading a machine; an opening
+  quantity here would put phantom stock on the books for every product.
+* **A missing MRP is written blank, never `0.00`.** A price of zero on a
+  vending machine means free.
+
+GST is split CGST/SGST/CESS from the gap between MRP and taxable price —
+VLite's tax *amount* fields are zero for most products, so deriving from them
+gives a confident, wrong 0%. Rates that are not real slabs are still written
+but reported in the panel, so they can be checked before the file is used.
