@@ -198,8 +198,13 @@ export function validateSubmission(payload) {
 
     // A refund we can't actually pay out is worse than no refund request:
     // require a way to reach them.
+    //
+    // Either channel still satisfies this. The form now offers only the
+    // WhatsApp number, but older clients and anything else posting here may
+    // still send an email, and refusing a refund request that carries a
+    // perfectly good address would be the wrong way round.
     if (base.refund_requested && !contactEmail && !contactPhone) {
-      errors.push('Add an email or phone number so we can process the refund.')
+      errors.push('Add your WhatsApp number so we can process the refund.')
     }
   }
 

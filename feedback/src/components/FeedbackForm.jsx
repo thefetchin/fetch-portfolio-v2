@@ -60,11 +60,11 @@ export default function FeedbackForm({ podId, podToken }) {
   const [productCategory, setProductCategory] = useState(null)
   const [productText, setProductText] = useState('')
   const [comment, setComment] = useState('')
-  const [contactEmail, setContactEmail] = useState('')
+  // One contact field, and it is the WhatsApp number. The +91 is fixed in the
+  // markup rather than sitting in this value, so it cannot be half-deleted and
+  // cannot be typed twice -- the state holds ten digits or nothing.
   const [contactPhone, setContactPhone] = useState('')
-  const [notifyOptIn, setNotifyOptIn] = useState(false)
   const [whatsappOptIn, setWhatsappOptIn] = useState(false)
-  const [whatsappNumber, setWhatsappNumber] = useState('')
 
   useEffect(() => {
     let cancelled = false
@@ -225,6 +225,15 @@ export default function FeedbackForm({ podId, podToken }) {
     }
   }
 
+  /**
+   * Indian mobile numbers are ten digits starting 6-9. The field only ever
+   * accepts digits, so this is the whole check -- and it runs before the
+   * request rather than after it, because being told on the next screen that
+   * a number was wrong is the point at which people give up.
+   */
+  const phoneEntered = contactPhone.length > 0
+  const phoneValid = /^[6-9]\d{9}$/.test(contactPhone)
+
   const canContinue = () => {
     if (step.type === 'rating') return rating != null
     if (step.key === 'issue') return issueType != null
@@ -239,19 +248,19 @@ export default function FeedbackForm({ podId, podToken }) {
     if (mode === COMPLAINT) {
       if (!issueType) return setError('Please tell us what went wrong.')
       if (!occurredWhen) return setError('Please tell us when this happened.')
-      if (refundRequested && !contactEmail.trim() && !contactPhone.trim()) {
-        return setError('Add an email or phone number so we can send the refund.')
+      if (refundRequested && !phoneEntered) {
+        return setError('Add your WhatsApp number so we can send the refund.')
       }
     } else if (!rating) {
       return setError('Please tap a rating.')
     }
-    if (notifyOptIn && !contactEmail.trim()) {
-      return setError("Add your email if you'd like us to tell you when we stock it.")
+    if (whatsappOptIn && !phoneEntered) {
+      return setError('Add your WhatsApp number so we can tell you when this Pod is refilled.')
     }
-    // Mirrors the server rule: the contact phone stands in when the WhatsApp
-    // box is left blank, so only complain when BOTH are empty.
-    if (whatsappOptIn && !whatsappNumber.trim() && !contactPhone.trim()) {
-      return setError('Add a WhatsApp number so we can tell you when this Pod is refilled.')
+    // The field already carries the detail inline, so this says what to DO
+    // rather than repeating the same sentence a second time on one screen.
+    if (phoneEntered && !phoneValid) {
+      return setError('Check your WhatsApp number before sending.')
     }
 
     setSubmitting(true)
@@ -264,9 +273,9 @@ export default function FeedbackForm({ podId, podToken }) {
           website: honeypot,
           dwellMs: Date.now() - mountedAt.current,
           issueType, occurredWhen, amount: amount || null, paymentRef, refundRequested,
-          rating, wantedCategories, wantedText, priceFeel, usageFreq, notifyOptIn,
-          whatsappOptIn, whatsappNumber,
-          productCategory, productText, comment, contactEmail, contactPhone,
+          rating, wantedCategories, wantedText, priceFeel, usageFreq,
+          whatsappOptIn,
+          productCategory, productText, comment, contactPhone,
         }),
       })
       const data = await res.json()
@@ -459,26 +468,33 @@ export default function FeedbackForm({ podId, podToken }) {
                     : 'Anything you want the team to know…'}
                   value={comment} onChange={(e) => setComment(e.target.value)}
                 />
-                <div className="fx-duo">
+                {/*
+                  The +91 is a fixed label, not part of the value. A prefilled
+                  "+91 " gets half-deleted, or typed a second time by someone
+                  who always writes their number in full; neither is possible
+                  when the country code is not editable and the box holds ten
+                  digits and nothing else.
+
+                  inputMode="numeric" rather than "tel": the telephone keypad
+                  carries *, # and pauses, none of which belong in a value that
+                  is about to be checked against ten digits.
+                */}
+                <div className={`fx-phone ${phoneEntered && !phoneValid ? 'is-bad' : ''}`}>
+                  <span className="fx-phone-cc" aria-hidden="true">+91</span>
                   <input
-                    className="fx-input" type="email" inputMode="email" autoComplete="email"
-                    placeholder="Email" maxLength={LIMITS.email}
-                    value={contactEmail} onChange={(e) => setContactEmail(e.target.value)}
-                  />
-                  <input
-                    className="fx-input" type="tel" inputMode="tel" autoComplete="tel"
-                    placeholder="Phone" maxLength={LIMITS.phone}
-                    value={contactPhone} onChange={(e) => setContactPhone(e.target.value)}
+                    className="fx-phone-input" type="tel" inputMode="numeric"
+                    pattern="[0-9]*" autoComplete="tel-national"
+                    aria-label="WhatsApp number"
+                    aria-invalid={phoneEntered && !phoneValid}
+                    placeholder="WhatsApp number" maxLength={10}
+                    value={contactPhone}
+                    onChange={(e) => setContactPhone(e.target.value.replace(/\D/g, '').slice(0, 10))}
                   />
                 </div>
-                {mode === FEEDBACK && (
-                  <label className="fx-check">
-                    <input
-                      type="checkbox" checked={notifyOptIn}
-                      onChange={(e) => setNotifyOptIn(e.target.checked)}
-                    />
-                    <span>Tell me when you stock what I asked for</span>
-                  </label>
+                {phoneEntered && !phoneValid && (
+                  <p className="fx-fine fx-fine--bad" role="alert">
+                    That needs to be 10 digits, starting 6 to 9.
+                  </p>
                 )}
                 <label className="fx-check">
                   <input
@@ -487,13 +503,6 @@ export default function FeedbackForm({ podId, podToken }) {
                   />
                   <span>{WA_CONSENT_TEXT}</span>
                 </label>
-                {whatsappOptIn && (
-                  <input
-                    className="fx-input" type="tel" inputMode="tel" autoComplete="tel"
-                    placeholder="WhatsApp number" maxLength={LIMITS.whatsapp}
-                    value={whatsappNumber} onChange={(e) => setWhatsappNumber(e.target.value)}
-                  />
-                )}
                 {whatsappOptIn && (
                   /*
                     Do not promise "reply STOP" here until something actually

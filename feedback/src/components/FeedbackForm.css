@@ -303,8 +303,6 @@
 /* -------------------------------------------------------------- inputs -- */
 
 .fx-stack { display: flex; flex-direction: column; gap: 0.6rem; margin-top: 0.2rem; }
-.fx-duo { display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; }
-
 .fx-input {
   width: 100%;
   padding: 0.8rem 0.9rem;
@@ -327,6 +325,66 @@
 }
 
 .fx-textarea { resize: vertical; min-height: 76px; line-height: 1.5; }
+
+/* ------------------------------------------------ WhatsApp number field --
+ * A fixed +91 sitting inside the same bordered box as the input, so the two
+ * read as one control. The border lives on the wrapper and the input itself
+ * has none -- otherwise the focus ring would draw around only half of it.
+ */
+
+.fx-phone {
+  display: flex;
+  align-items: stretch;
+  border: 1.5px solid var(--ink-200);
+  border-radius: var(--fx-r-sm);
+  background: var(--ink-0);
+  overflow: hidden;
+  transition: border-color 0.16s ease, box-shadow 0.16s ease;
+}
+
+.fx-phone:focus-within {
+  border-color: var(--brand-500);
+  box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.14);
+}
+
+.fx-phone.is-bad { border-color: var(--danger-500, #ef4444); }
+
+.fx-phone.is-bad:focus-within {
+  box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.14);
+}
+
+.fx-phone-cc {
+  display: flex;
+  align-items: center;
+  padding: 0.8rem 0.65rem 0.8rem 0.9rem;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--ink-500);
+  background: var(--ink-50, #f8fafc);
+  border-right: 1.5px solid var(--ink-100);
+  user-select: none;
+  flex-shrink: 0;
+}
+
+.fx-phone-input {
+  flex: 1;
+  min-width: 0;
+  padding: 0.8rem 0.9rem;
+  border: none;
+  background: transparent;
+  font-size: 16px; /* no iOS zoom */
+  color: var(--ink-900);
+  /* Digits line up as they are typed, which makes a ten-digit number easy to
+     count back over on a phone screen. */
+  letter-spacing: 0.02em;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.fx-phone-input:focus { outline: none; }
+.fx-phone-input::placeholder { color: var(--ink-300); letter-spacing: normal; }
+
+.fx-fine--bad { color: var(--danger-600, #dc2626); }
 
 .fx-check {
   display: flex;
@@ -500,7 +558,6 @@
 
 @media (max-width: 340px) {
   .fx-body { padding: 1.25rem 1rem 0.9rem; }
-  .fx-duo { grid-template-columns: 1fr; }
   .fx-rating-word { display: none; }
   .fx-rating-face { font-size: 1.6rem; }
 }

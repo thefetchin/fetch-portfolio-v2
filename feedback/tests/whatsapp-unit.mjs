@@ -99,6 +99,30 @@ const complaint = validateSubmission({
 })
 eq('a problem report can opt in too', complaint.value.whatsapp_number, '919876543210')
 
+/* The form now offers ONE contact field, the WhatsApp number, and sends it as
+   contactPhone. These pin the shape that field actually posts. */
+section('the single-field form')
+
+const formShape = validateSubmission({
+  kind: 'feedback', rating: 5, comment: 'nice', contactPhone: '9876543210', whatsappOptIn: true,
+})
+eq('a payload with no email and no separate whatsappNumber still opts in',
+  [formShape.ok, formShape.value.whatsapp_number, formShape.value.contact_email],
+  [true, '919876543210', null])
+
+const refundByPhone = validateSubmission({
+  kind: 'complaint', issueType: 'double_charge', occurredWhen: 'today',
+  refundRequested: true, contactPhone: '9876543210',
+})
+eq('a refund can be claimed with the number alone', refundByPhone.ok, true)
+
+const refundNoContact = validateSubmission({
+  kind: 'complaint', issueType: 'double_charge', occurredWhen: 'today', refundRequested: true,
+})
+eq('a refund with no way to reach them is still refused', refundNoContact.ok, false)
+eq('and the message names the field the form actually shows',
+  /WhatsApp number/.test(refundNoContact.errors.join(' ')), true)
+
 /* ------------------------------------------------------------- the row --- */
 section('what reaches the database')
 
