@@ -10,6 +10,7 @@ import {
 import Pods from './Pods'
 import DebitNotes from './DebitNotes'
 import Inventory from './Inventory'
+import Whatsapp from './Whatsapp'
 import './Admin.css'
 
 const labelMap = (options) =>
@@ -297,6 +298,14 @@ export default function Admin() {
         </button>
         <button
           type="button" role="tab"
+          aria-selected={view === 'whatsapp'}
+          className={`admin-tab ${view === 'whatsapp' ? 'is-active' : ''}`}
+          onClick={() => setView('whatsapp')}
+        >
+          WhatsApp
+        </button>
+        <button
+          type="button" role="tab"
           aria-selected={view === 'invoicing'}
           className={`admin-tab ${view === 'invoicing' ? 'is-active' : ''}`}
           onClick={() => setView('invoicing')}
@@ -310,6 +319,8 @@ export default function Admin() {
       {view === 'inventory' && <Inventory />}
 
       {view === 'invoicing' && <DebitNotes />}
+
+      {view === 'whatsapp' && <Whatsapp />}
 
       {view === 'submissions' && stats && (
         <div className="stats">

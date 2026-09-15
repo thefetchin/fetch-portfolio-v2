@@ -77,12 +77,32 @@ export const LIMITS = {
   email: 160,
   phone: 20,
   podId: 40,
+  whatsapp: 20,
   /** ₹20,000 in paise — a vending purchase above this is certainly bogus. */
   maxAmountPaise: 2_000_000,
 }
 
 /** Helper: turn an option array into a Set of valid values for validation. */
 export const valuesOf = (options) => new Set(options.map((o) => o.value))
+
+/* ------------------------------------------------------- WhatsApp opt-in --
+ * People can ask to be messaged on WhatsApp when a Pod they use is refilled.
+ *
+ * WA_CONSENT_TEXT is the exact sentence shown next to the checkbox, and it is
+ * copied verbatim into every whatsapp_optins row. Change the wording here and
+ * new rows record the new wording while old rows keep the old -- which is the
+ * point: a consent record has to say what was actually agreed to, not what the
+ * form says today.
+ */
+
+export const WA_CONSENT_TEXT =
+  'Message me on WhatsApp when this Pod is refilled'
+
+/** Mirrors the CHECK on whatsapp_optins.status in 006_whatsapp_optin.sql. */
+export const WHATSAPP_STATUSES = ['active', 'unsubscribed', 'invalid']
+
+/** India. The only country we operate in, so the only prefix we default to. */
+export const WA_DEFAULT_COUNTRY_CODE = '91'
 
 /**
  * PBKDF2 iterations for admin passwords. Imported by BOTH worker/auth.js and

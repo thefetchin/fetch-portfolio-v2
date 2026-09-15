@@ -8,6 +8,7 @@ import {
   RATINGS,
   PAYMENT_ISSUES,
   LIMITS,
+  WA_CONSENT_TEXT,
 } from '../../shared/constants.js'
 import Turnstile from './Turnstile'
 import './FeedbackForm.css'
@@ -62,6 +63,8 @@ export default function FeedbackForm({ podId, podToken }) {
   const [contactEmail, setContactEmail] = useState('')
   const [contactPhone, setContactPhone] = useState('')
   const [notifyOptIn, setNotifyOptIn] = useState(false)
+  const [whatsappOptIn, setWhatsappOptIn] = useState(false)
+  const [whatsappNumber, setWhatsappNumber] = useState('')
 
   useEffect(() => {
     let cancelled = false
@@ -245,6 +248,11 @@ export default function FeedbackForm({ podId, podToken }) {
     if (notifyOptIn && !contactEmail.trim()) {
       return setError("Add your email if you'd like us to tell you when we stock it.")
     }
+    // Mirrors the server rule: the contact phone stands in when the WhatsApp
+    // box is left blank, so only complain when BOTH are empty.
+    if (whatsappOptIn && !whatsappNumber.trim() && !contactPhone.trim()) {
+      return setError('Add a WhatsApp number so we can tell you when this Pod is refilled.')
+    }
 
     setSubmitting(true)
     try {
@@ -257,6 +265,7 @@ export default function FeedbackForm({ podId, podToken }) {
           dwellMs: Date.now() - mountedAt.current,
           issueType, occurredWhen, amount: amount || null, paymentRef, refundRequested,
           rating, wantedCategories, wantedText, priceFeel, usageFreq, notifyOptIn,
+          whatsappOptIn, whatsappNumber,
           productCategory, productText, comment, contactEmail, contactPhone,
         }),
       })
@@ -470,6 +479,34 @@ export default function FeedbackForm({ podId, podToken }) {
                     />
                     <span>Tell me when you stock what I asked for</span>
                   </label>
+                )}
+                <label className="fx-check">
+                  <input
+                    type="checkbox" checked={whatsappOptIn}
+                    onChange={(e) => setWhatsappOptIn(e.target.checked)}
+                  />
+                  <span>{WA_CONSENT_TEXT}</span>
+                </label>
+                {whatsappOptIn && (
+                  <input
+                    className="fx-input" type="tel" inputMode="tel" autoComplete="tel"
+                    placeholder="WhatsApp number" maxLength={LIMITS.whatsapp}
+                    value={whatsappNumber} onChange={(e) => setWhatsappNumber(e.target.value)}
+                  />
+                )}
+                {whatsappOptIn && (
+                  /*
+                    Do not promise "reply STOP" here until something actually
+                    reads inbound messages. Nothing does yet, so the honest
+                    version is the address people can already reach us at.
+                    Whoever builds the sending side should honour STOP and
+                    then this line can say so.
+                  */
+                  <p className="fx-fine">
+                    Only used to tell you when this Pod is refilled. Email{' '}
+                    <a href="mailto:thefetch.in@gmail.com">thefetch.in@gmail.com</a>{' '}
+                    any time to come off the list.
+                  </p>
                 )}
                 <p className="fx-fine">
                   {mode === COMPLAINT && refundRequested

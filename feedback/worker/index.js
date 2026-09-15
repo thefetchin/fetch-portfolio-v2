@@ -6,7 +6,9 @@ import {
 } from './invoicing.js'
 import { beginIdempotent, maybePrune } from './idempotency.js'
 import { routeInventory } from './inv-routes.js'
-import { SUBMISSION_STATUSES, DEBIT_NOTE_STATUSES } from '../shared/constants.js'
+import {
+  SUBMISSION_STATUSES, DEBIT_NOTE_STATUSES, WHATSAPP_STATUSES, WA_CONSENT_TEXT,
+} from '../shared/constants.js'
 
 /* ------------------------------------------------------------------ utils */
 
@@ -209,8 +211,14 @@ async function handleSubmit(request, env) {
   const ua = (request.headers.get('User-Agent') || '').slice(0, 200)
   const country = request.headers.get('CF-IPCountry') || null
 
+  // The submission and, when consent was given, the WhatsApp opt-in go in as
+  // ONE batch. If the submission turns out to be a dedupe replay the whole
+  // thing rolls back -- which is right: the first copy already recorded the
+  // consent, and a second row would mean messaging the same person twice.
+  const statements = []
+
   try {
-    await env.DB.prepare(
+    statements.push(env.DB.prepare(
       `INSERT INTO submissions (
          id, pod_id, kind, ip_hash, country, user_agent, dedupe_hash,
          issue_type, occurred_when, amount_paise, payment_ref, refund_requested,
@@ -227,7 +235,28 @@ async function handleSubmit(request, env) {
       v.issue_type, v.occurred_when, v.amount_paise, v.payment_ref, v.refund_requested,
       v.rating, v.wanted_categories, v.wanted_text, v.price_feel, v.usage_freq, v.notify_opt_in,
       v.product_category, v.product_text, v.comment, v.contact_email, v.contact_phone
-    ).run()
+    ))
+
+    if (v.whatsapp_opt_in) {
+      // Ticking the box again at the same Pod refreshes the existing consent
+      // rather than adding a second row -- including lifting an earlier
+      // unsubscribe, which is a fresh, explicit opt-in and nothing else.
+      // consent_text is re-copied so the row always records the wording that
+      // was actually on screen.
+      statements.push(env.DB.prepare(
+        `INSERT INTO whatsapp_optins (
+           optin_id, wa_number, pod_id, status, source, consent_text, submission_id
+         ) VALUES (?1, ?2, ?3, 'active', 'feedback_form', ?4, ?5)
+         ON CONFLICT (wa_number, pod_id) DO UPDATE SET
+           status          = 'active',
+           unsubscribed_at = NULL,
+           reconfirmed_at  = datetime('now'),
+           consent_text    = excluded.consent_text,
+           submission_id   = excluded.submission_id`
+      ).bind(crypto.randomUUID(), v.whatsapp_number, podId, WA_CONSENT_TEXT, id))
+    }
+
+    await env.DB.batch(statements)
   } catch (err) {
     // UNIQUE violation on dedupe_hash = the same thing submitted twice.
     // That's a success from the user's point of view.
@@ -285,6 +314,110 @@ async function handleAdminSubmissions(request, env) {
   ).first()
 
   return json({ submissions: rows.results || [], stats })
+}
+
+/* ------------------------------------------ admin: WhatsApp opt-ins ----- */
+
+/**
+ * The list of people to message when a Pod is refilled.
+ *
+ * Returns the consent record, not just the number: when they agreed, to what
+ * wording, and on which report. If a number is ever challenged, that is the
+ * answer, and it has to be one query away or it will not be given.
+ */
+async function handleAdminWhatsappList(request, env) {
+  const url = new URL(request.url)
+  const limit = Math.min(Number.parseInt(url.searchParams.get('limit') || '500', 10) || 500, 2000)
+  const podId = url.searchParams.get('pod')
+  const status = url.searchParams.get('status')
+
+  const where = []
+  const binds = []
+  if (podId) {
+    binds.push(podId)
+    where.push(`w.pod_id = ?${binds.length}`)
+  }
+  if (WHATSAPP_STATUSES.includes(status)) {
+    binds.push(status)
+    where.push(`w.status = ?${binds.length}`)
+  }
+  binds.push(limit)
+
+  const rows = await env.DB.prepare(
+    `SELECT w.optin_id, w.wa_number, w.pod_id, w.status, w.source, w.consent_text,
+            w.display_name, w.submission_id, w.consented_at, w.reconfirmed_at,
+            w.unsubscribed_at, w.last_sent_at, w.send_count,
+            p.label AS pod_label, p.location AS pod_location, p.city AS pod_city
+       FROM whatsapp_optins w
+       LEFT JOIN pods p ON p.pod_id = w.pod_id
+       ${where.length ? `WHERE ${where.join(' AND ')}` : ''}
+       ORDER BY w.consented_at DESC
+       LIMIT ?${binds.length}`
+  ).bind(...binds).all()
+
+  const stats = await env.DB.prepare(
+    `SELECT
+       COUNT(*)                                                     AS total,
+       SUM(CASE WHEN status = 'active'       THEN 1 ELSE 0 END)     AS active,
+       SUM(CASE WHEN status = 'unsubscribed' THEN 1 ELSE 0 END)     AS unsubscribed,
+       COUNT(DISTINCT wa_number)                                    AS people,
+       COUNT(DISTINCT CASE WHEN status = 'active' THEN pod_id END)  AS pods_covered
+     FROM whatsapp_optins`
+  ).first()
+
+  return json({ optins: rows.results || [], stats })
+}
+
+/**
+ * Opt-out, and the way back in.
+ *
+ * Unsubscribing never deletes the row. A deleted row would be silently
+ * re-created by the next form submission from that number, which is the one
+ * thing an opt-out must not do.
+ */
+async function handleAdminWhatsappUpdate(request, env, optinId) {
+  let body
+  try {
+    body = await request.json()
+  } catch {
+    return json({ error: 'bad_json', message: 'Malformed request.' }, 400)
+  }
+
+  const status = WHATSAPP_STATUSES.includes(body.status) ? body.status : null
+  if (!status) {
+    return json({ error: 'validation', message: 'Unknown status.' }, 422)
+  }
+
+  const row = await env.DB.prepare(
+    'SELECT status FROM whatsapp_optins WHERE optin_id = ?1'
+  ).bind(optinId).first()
+  if (!row) return json({ error: 'not_found', message: 'No such opt-in.' }, 404)
+
+  // An opt-out can only be undone by the person themselves, by ticking the box
+  // again on the form. Re-subscribing someone from the dashboard is the one
+  // move that would turn a consent ledger into an ordinary marketing list, so
+  // it is refused here and not merely hidden in the UI -- a button that is not
+  // rendered is not a control.
+  if (row.status === 'unsubscribed' && status !== 'unsubscribed') {
+    return json({
+      error: 'opted_out',
+      message: 'This person opted out. Only they can opt back in, from the form.',
+    }, 409)
+  }
+
+  const res = await env.DB.prepare(
+    `UPDATE whatsapp_optins
+        SET status = ?2,
+            unsubscribed_at = CASE WHEN ?2 = 'unsubscribed'
+                                   THEN COALESCE(unsubscribed_at, datetime('now'))
+                                   ELSE NULL END
+      WHERE optin_id = ?1`
+  ).bind(optinId, status).run()
+
+  if (!res.meta?.changes) {
+    return json({ error: 'not_found', message: 'No such opt-in.' }, 404)
+  }
+  return json({ ok: true, status })
 }
 
 /* ------------------------------------------------- admin: pods + QR ----- */
@@ -593,6 +726,13 @@ export default {
         }
         if (pathname === '/api/admin/pods' && request.method === 'POST') {
           return await handleAdminPodCreate(request, env)
+        }
+        if (pathname === '/api/admin/whatsapp' && request.method === 'GET') {
+          return await handleAdminWhatsappList(request, env)
+        }
+        const waMatch = pathname.match(/^\/api\/admin\/whatsapp\/([\w-]+)$/)
+        if (waMatch && request.method === 'PATCH') {
+          return await handleAdminWhatsappUpdate(request, env, waMatch[1])
         }
         if (pathname === '/api/admin/debit-notes' && request.method === 'POST') {
           return await handleDebitNoteCreate(request, env, auth.email)

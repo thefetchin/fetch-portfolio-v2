@@ -205,3 +205,70 @@ feedback/
 4. Render it in `FeedbackForm.jsx`, display it in `Admin.jsx`.
 
 Never rename an existing option `value` — old rows still reference it.
+
+## WhatsApp refill notifications
+
+People who use a Pod can ask to be messaged when it is refilled. The opt-in is
+a checkbox at the end of the feedback form, on both the feedback and the
+problem-report paths, and it lands in **`whatsapp_optins`**.
+
+Nothing in this repo sends a WhatsApp message. This is the list and the
+evidence behind it; sending is a separate decision made with a separate tool.
+
+Apply the table:
+
+```
+npm run db:whatsapp          # remote
+npm run db:whatsapp:local    # local
+```
+
+### The columns that matter
+
+| Column | |
+|---|---|
+| `wa_number` | E.164 **without** the `+` — `919876543210`. This is what WhatsApp addresses, and what `https://wa.me/<number>` takes. Note `submissions.contact_phone` is the opposite convention (local, no country code) — the two are not interchangeable. |
+| `pod_id` | Interest is per-Pod. One person who uses two machines has two rows. |
+| `status` | `active`, `unsubscribed`, `invalid`. Only ever message `active`. |
+| `consent_text` | The exact sentence they ticked, copied at the time. Change `WA_CONSENT_TEXT` in `shared/constants.js` and new rows record the new wording while old rows keep theirs. |
+| `consented_at` / `reconfirmed_at` | When they first agreed, and when they last re-agreed. |
+| `last_sent_at` / `send_count` | For whatever does the sending to write back. |
+
+### Who to message when a Pod is refilled
+
+```sql
+SELECT wa_number
+  FROM whatsapp_optins
+ WHERE pod_id = 'POD-003'
+   AND status = 'active';
+```
+
+### Rules the schema and the API enforce
+
+* **A number is only stored when the box was ticked.** A number typed and then
+  left unticked is not consent and is dropped.
+* **One row per (number, Pod).** A second opt-in updates the existing consent
+  rather than creating a duplicate to message twice.
+* **Unsubscribing never deletes the row** — a deleted row would be silently
+  re-created by that person's next form submission, which is the one thing an
+  opt-out must not do. `status` flips and `unsubscribed_at` is set, enforced by
+  a `CHECK` so a hand-run `UPDATE` cannot skip the date.
+* **An opt-out cannot be reversed from the dashboard.** `PATCH` returns `409`.
+  Only the person themselves, by ticking the box again on the form, brings a
+  row back to `active`.
+
+### Before sending anything
+
+Two things are owed to the people on this list and are not built yet:
+
+1. **Honour an inbound STOP.** The form deliberately does not promise it,
+   because nothing reads replies. Whoever builds sending should handle it, and
+   then the form copy can say so.
+2. **Send only to `active`**, and write back `last_sent_at` / `send_count` so a
+   failed send can be traced and a dead number marked `invalid`.
+
+### Dashboard
+
+`admin.thefetch.in` → **WhatsApp**. Lists the numbers with their consent, filters
+by Pod and status, opts someone out, and exports CSV — with the consent date and
+wording in the export, because a bare column of phone numbers in a spreadsheet
+is the format in which consent gets forgotten.

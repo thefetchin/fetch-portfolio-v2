@@ -1,0 +1,169 @@
+.wa { display: flex; flex-direction: column; gap: 1.25rem; }
+
+.wa-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  align-items: flex-start;
+  justify-content: space-between;
+}
+
+.wa-head h2 {
+  font-size: 1.1rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  margin-bottom: 0.3rem;
+}
+
+.wa-sub {
+  font-size: 0.88rem;
+  color: var(--ink-500);
+  line-height: 1.55;
+  max-width: 54ch;
+}
+
+.wa-actions { display: flex; gap: 0.5rem; flex-shrink: 0; }
+
+.wa-error {
+  background: var(--danger-50, #fef2f2);
+  border: 1px solid var(--danger-200, #fecaca);
+  color: var(--danger-700, #b91c1c);
+  padding: 0.75rem 1rem;
+  border-radius: var(--radius-md);
+  font-size: 0.9rem;
+}
+
+/* ---------------------------------------------------------------- stats -- */
+
+.wa-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 0.75rem;
+}
+
+.wa-stat {
+  background: var(--ink-0);
+  border: 1px solid var(--ink-100);
+  border-radius: var(--radius-lg);
+  padding: 0.9rem 1rem;
+}
+
+.wa-stat span {
+  display: block;
+  font-size: 1.5rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--ink-900);
+}
+
+.wa-stat label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--ink-500);
+}
+
+/* -------------------------------------------------------------- filters -- */
+
+.wa-filters { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+
+.wa-filters select {
+  padding: 0.55rem 0.8rem;
+  border: 1.5px solid var(--ink-200);
+  border-radius: var(--radius-md);
+  background: var(--ink-0);
+  color: var(--ink-900);
+  font-size: 0.9rem;
+}
+
+/* ---------------------------------------------------------------- table -- */
+
+/* Wide on a narrow screen: scroll the table, never the page. */
+.wa-table-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--ink-100);
+  border-radius: var(--radius-lg);
+  background: var(--ink-0);
+}
+
+.wa-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.88rem;
+  min-width: 720px;
+}
+
+.wa-table th {
+  text-align: left;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--ink-500);
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid var(--ink-100);
+  white-space: nowrap;
+}
+
+.wa-table td {
+  padding: 0.85rem 1rem;
+  border-bottom: 1px solid var(--ink-100);
+  vertical-align: top;
+  color: var(--ink-900);
+}
+
+.wa-table tr:last-child td { border-bottom: none; }
+.wa-table tr.is-off td { opacity: 0.6; }
+
+.wa-table a { color: var(--brand-600, #0284c7); text-decoration: none; font-weight: 600; }
+.wa-table a:hover { text-decoration: underline; }
+
+.wa-fine {
+  font-size: 0.76rem;
+  color: var(--ink-500);
+  line-height: 1.45;
+  margin-top: 0.15rem;
+}
+
+/* The agreed wording, kept visible but not shouting. Truncated because it is
+   the same sentence on nearly every row; the full text is in the title and
+   in the CSV. */
+.wa-consent {
+  max-width: 28ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-style: italic;
+}
+
+.wa-row-actions { white-space: nowrap; }
+
+/* --------------------------------------------------------------- badges -- */
+
+.wa-badge {
+  display: inline-block;
+  padding: 0.2rem 0.55rem;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.wa-badge--active       { background: #dcfce7; color: #15803d; }
+.wa-badge--unsubscribed { background: var(--ink-100); color: var(--ink-500); }
+.wa-badge--invalid      { background: #fef3c7; color: #b45309; }
+
+/* ---------------------------------------------------------------- empty -- */
+
+.wa-empty {
+  border: 1px dashed var(--ink-200);
+  border-radius: var(--radius-lg);
+  padding: 2rem 1.5rem;
+  text-align: center;
+  color: var(--ink-500);
+}
+
+.wa-empty p { margin: 0 0 0.4rem; }
+
+@media (max-width: 640px) {
+  .wa-head { flex-direction: column; }
+}

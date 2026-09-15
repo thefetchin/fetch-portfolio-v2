@@ -6,6 +6,7 @@ import {
   USAGE_FREQ,
   PAYMENT_ISSUES,
   LIMITS,
+  WA_DEFAULT_COUNTRY_CODE,
   valuesOf,
 } from '../shared/constants.js'
 
@@ -55,6 +56,43 @@ export function cleanPhone(input) {
   if (!text) return null
   const digits = text.replace(/[\s-]/g, '')
   return PHONE_RE.test(digits) ? digits.replace(/^\+?91/, '') : null
+}
+
+/**
+ * Normalise a WhatsApp number to the form WhatsApp itself uses: country code
+ * plus subscriber number, digits only, no '+'.
+ *
+ * `cleanPhone` deliberately STRIPS the country code -- it exists to store a
+ * local number someone will read off a screen and dial. A WhatsApp number is
+ * an address, not a display string, and 9876543210 addresses nobody. So this
+ * adds the country code rather than removing it, and the two functions are
+ * kept separate rather than one growing a flag, because their outputs are not
+ * interchangeable and a mix-up would be silent.
+ *
+ * Accepts +91 98765 43210, 09876543210, 9876543210 and returns 919876543210.
+ * Returns null for anything that is not a plausible Indian mobile.
+ */
+export function cleanWhatsApp(input) {
+  const text = cleanText(input, LIMITS.whatsapp)
+  if (!text) return null
+
+  let digits = text.replace(/[^\d+]/g, '').replace(/^\+/, '')
+
+  // Drop a trunk '0' only on a bare local number (09876543210), never inside
+  // an already-prefixed one.
+  if (digits.length === 11 && digits.startsWith('0')) digits = digits.slice(1)
+  if (digits.length === 10) digits = WA_DEFAULT_COUNTRY_CODE + digits
+
+  // Indian mobiles are 10 digits starting 6-9.
+  //
+  // This catches most landlines but cannot catch all of them: 0824-2441234 is
+  // 11 digits, exactly like a mobile written with a trunk zero, and dropping
+  // the zero leaves 824... which is a valid mobile prefix. No format check
+  // separates those two. Such a number is accepted here and will simply never
+  // deliver -- which is what the 'invalid' status on whatsapp_optins records,
+  // rather than pretending the check is stronger than it is.
+  if (!/^91[6-9]\d{9}$/.test(digits)) return null
+  return digits
 }
 
 /**
@@ -119,6 +157,29 @@ export function validateSubmission(payload) {
     price_feel: null,
     usage_freq: null,
     notify_opt_in: 0,
+    // WhatsApp refill alerts. Stored in whatsapp_optins, not on the
+    // submission -- a consent has its own lifecycle and outlives the report
+    // it arrived on.
+    whatsapp_opt_in: 0,
+    whatsapp_number: null,
+  }
+
+  // Offered on BOTH tabs on purpose: the person most likely to want telling
+  // when a Pod is refilled is the one reporting that it is empty.
+  //
+  // The number is only read when the box is ticked. A number typed and then
+  // left unticked is not consent, and storing it "because they gave it to us"
+  // is exactly the reasoning that makes a marketing list indefensible.
+  if (payload.whatsappOptIn) {
+    // Fall back to the contact phone so nobody has to type the same number
+    // into two boxes on a phone keypad.
+    const wa = cleanWhatsApp(payload.whatsappNumber) || cleanWhatsApp(payload.contactPhone)
+    if (wa) {
+      base.whatsapp_opt_in = 1
+      base.whatsapp_number = wa
+    } else {
+      errors.push('Add a WhatsApp number so we can tell you when this Pod is refilled.')
+    }
   }
 
   if (kind === 'complaint') {
