@@ -156,6 +156,66 @@ export default function Pods() {
     }
   }
 
+  const [editing, setEditing] = useState(null)   // podId being edited
+  const [draft, setDraft] = useState({ label: '', location: '', city: '' })
+  const [subs, setSubs] = useState({})           // podId -> active subscriber count
+
+  // How many people would actually receive a message, per Pod. Shown on the
+  // button so nobody presses "notify" without knowing the size of the audience.
+  const loadSubs = useCallback(async () => {
+    try {
+      const r = await fetch('/api/admin/whatsapp?status=active', { credentials: 'include' })
+      if (!r.ok) return
+      const d = await r.json()
+      const counts = {}
+      for (const o of d.optins || []) counts[o.pod_id] = (counts[o.pod_id] || 0) + 1
+      setSubs(counts)
+    } catch { /* the page is still useful without the counts */ }
+  }, [])
+
+  useEffect(() => { loadSubs() }, [loadSubs])
+
+  const startEdit = (pod) => {
+    setEditing(pod.podId)
+    setDraft({ label: pod.label || '', location: pod.location || '', city: pod.city || '' })
+    setError(null)
+  }
+
+  const saveEdit = async (pod) => {
+    setBusy(true); setError(null)
+    try {
+      const res = await fetch(`/api/admin/pods/${pod.podId}`, {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(draft),
+      })
+      const d = await res.json()
+      if (!res.ok) throw new Error(d.message || 'Could not save those details.')
+      setEditing(null)
+      setNotice(`${d.pod.label} updated. The QR code is unchanged.`)
+      load()
+    } catch (e) { setError(e.message) } finally { setBusy(false) }
+  }
+
+  const notify = async (pod) => {
+    const n = subs[pod.podId] || 0
+    if (!window.confirm(
+      `Send the refill message to ${n} ${n === 1 ? 'person' : 'people'} subscribed to `
+      + `${pod.label}?\n\nThis reaches real phones and cannot be undone.`
+    )) return
+    setBusy(true); setError(null); setNotice(null)
+    try {
+      const res = await fetch(`/api/admin/pods/${pod.podId}/notify`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: '{}',
+      })
+      const d = await res.json()
+      if (!res.ok) throw new Error(d.message || 'Could not send.')
+      setNotice(d.message)
+    } catch (e) { setError(e.message) } finally { setBusy(false) }
+  }
+
   const toggleActive = async (pod) => {
     await fetch(`/api/admin/pods/${pod.podId}`, {
       method: 'PATCH',
@@ -250,10 +310,67 @@ export default function Pods() {
                 <button type="button" onClick={() => navigator.clipboard?.writeText(pod.url)}>
                   Copy link
                 </button>
+                <button type="button" onClick={() => startEdit(pod)}>Edit details</button>
+                <button
+                  type="button"
+                  className="pod-notify"
+                  disabled={busy || !pod.active || !(subs[pod.podId] > 0)}
+                  onClick={() => notify(pod)}
+                  title={subs[pod.podId]
+                    ? 'Send the refill message to everyone subscribed to this Pod'
+                    : 'Nobody has subscribed to this Pod yet'}
+                >
+                  Notify {subs[pod.podId] || 0}
+                </button>
                 <button type="button" onClick={() => toggleActive(pod)}>
                   {pod.active ? 'Retire' : 'Reactivate'}
                 </button>
               </div>
+
+              {editing === pod.podId && (
+                <div className="pod-edit">
+                  {/*
+                    The machine ID is shown but not editable. It is baked into
+                    the printed QR and signed, so changing it would silently
+                    break every sticker already on a machine.
+                  */}
+                  <p className="pod-edit-fixed">
+                    Machine ID <code>{pod.podId}</code> cannot change — it is printed
+                    in the QR code on the machine.
+                  </p>
+                  <label>
+                    <span>Display name</span>
+                    <input
+                      value={draft.label} maxLength={60}
+                      onChange={(e) => setDraft({ ...draft, label: e.target.value })}
+                    />
+                  </label>
+                  <label>
+                    <span>Location</span>
+                    <input
+                      value={draft.location} maxLength={120}
+                      onChange={(e) => setDraft({ ...draft, location: e.target.value })}
+                    />
+                  </label>
+                  <label>
+                    <span>City</span>
+                    <input
+                      value={draft.city} maxLength={60}
+                      onChange={(e) => setDraft({ ...draft, city: e.target.value })}
+                    />
+                  </label>
+                  <p className="pod-edit-note">
+                    These appear on the feedback page and in the WhatsApp refill
+                    message, so they are read by customers.
+                  </p>
+                  <div className="pod-card-actions">
+                    <button type="button" onClick={() => saveEdit(pod)} disabled={busy}>
+                      {busy ? 'Saving…' : 'Save'}
+                    </button>
+                    <button type="button" onClick={() => setEditing(null)}>Cancel</button>
+                  </div>
+                </div>
+              )}
             </div>
           </article>
         ))}

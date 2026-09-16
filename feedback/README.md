@@ -332,3 +332,74 @@ GST is split CGST/SGST/CESS from the gap between MRP and taxable price —
 VLite's tax *amount* fields are zero for most products, so deriving from them
 gives a confident, wrong 0%. Rates that are not real slabs are still written
 but reported in the panel, so they can be checked before the file is used.
+
+## Sending the refill message
+
+`admin.thefetch.in` → **Pods & QR codes** → **Notify** on a Pod messages
+everyone subscribed to it. The count on the button is how many people that is.
+
+### Why it is a template and not a message you type
+
+WhatsApp does not let a business send arbitrary text. A message the business
+starts — which is all of these, since none of these people has written to us —
+must be a **template approved by Meta** in advance. Free text is only allowed
+inside a 24-hour window that a customer opens by messaging first.
+
+So the panel configures *which* template and *what goes in its blanks*. The
+wording lives at Meta. A box that let you type a sentence and press send would
+fail on every attempt with error 132000, and it would look like our bug.
+
+### Setting it up
+
+1. In Meta Business Manager, create a message template. Suggested body, which
+   the panel will offer you:
+
+   > 🎉 Good news! The Fetch Pod at {{1}} has just been restocked.
+   >
+   > 🍫 Snacks, 🥤 cold drinks and 💧 water are all back in.
+   >
+   > Pop by whenever you fancy something — see you soon! 👋
+
+   Category **Utility**. Emojis are fine in an approved template.
+
+2. Set the credentials as Worker secrets — never in the repo:
+
+   ```
+   npx wrangler secret put WHATSAPP_TOKEN
+   npx wrangler secret put WHATSAPP_PHONE_ID
+   ```
+
+3. In **WhatsApp → Message settings**, enter the template name exactly as
+   registered, tick which Pod fields fill `{{1}}`, `{{2}}`, and switch sending
+   on.
+
+`WHATSAPP_BASE_URL` exists only so the send path can be tested against a stub.
+Leave it unset in production.
+
+### What the send does and does not do
+
+* Only `status = 'active'` opt-ins are messaged. Someone who opted out is never
+  contacted, and never appears in the send log.
+* Every attempt is written to `whatsapp_sends`, successes and failures alike,
+  so "who did we message?" is answerable. These are customers; a duplicate is a
+  real annoyance rather than a duplicated row.
+* A second send to the same Pod within **10 minutes** is refused. That is
+  almost always a double click or an impatient retry, not a second refill.
+* At most 40 per click, because the Workers free plan allows 50 subrequests per
+  request. If a Pod has more subscribers, the response says how many were left
+  and pressing again continues.
+* A dead token or an unapproved template stops the batch rather than repeating
+  the same failure for everyone and burning the quota.
+
+## Editing a Pod
+
+**Edit details** on a Pod card changes the display name, location and city.
+
+The machine ID cannot be changed. It is baked into the printed QR code and
+signed with `QR_SECRET`, so changing it would silently break every sticker
+already stuck to a machine — and somebody editing a display name has no reason
+to expect that. The server ignores a `podId` in the payload rather than
+trusting the form to have hidden it.
+
+These fields are read by customers: they appear on the feedback page and in the
+WhatsApp message.

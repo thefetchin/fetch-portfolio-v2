@@ -29,10 +29,177 @@ const STATUS_LABELS = {
   invalid: 'Bad number',
 }
 
+const VARIABLE_FIELDS = [
+  { value: 'pod_label', label: 'Pod display name' },
+  { value: 'pod_location', label: 'Pod location' },
+  { value: 'pod_city', label: 'Pod city' },
+]
+
+/** A short, friendly body to register with Meta. Emojis are allowed in an
+ *  approved template; the variables are positional. */
+const SUGGESTED_BODY =
+  '\u{1F389} Good news! The Fetch Pod at {{1}} has just been restocked.\n\n'
+  + '\u{1F36B} Snacks, \u{1F964} cold drinks and \u{1F4A7} water are all back in.\n\n'
+  + 'Pop by whenever you fancy something \u2014 see you soon! \u{1F44B}'
+
+/**
+ * Message settings.
+ *
+ * WhatsApp does not let a business send arbitrary text. Every message here is
+ * one we start, so Meta requires an APPROVED TEMPLATE -- free text is only
+ * allowed inside a 24-hour window a customer opens by writing to us first.
+ *
+ * So what is configurable here is which template and what goes in its
+ * variables. The sentence itself lives at Meta. A box that let you type a
+ * message and press send would fail on every attempt, and the error would look
+ * like our bug.
+ */
+function Settings({ onError, onNotice }) {
+  const [s, setS] = useState(null)
+  const [busy, setBusy] = useState(false)
+
+  const load = useCallback(async () => {
+    try {
+      const r = await fetch('/api/admin/whatsapp/settings', { credentials: 'include' })
+      const d = await r.json()
+      if (!r.ok) throw new Error(d.message || 'Could not load the settings.')
+      setS(d.settings)
+    } catch (e) { onError(e.message) }
+  }, [onError])
+
+  useEffect(() => { load() }, [load])
+
+  const save = async () => {
+    setBusy(true)
+    try {
+      const r = await fetch('/api/admin/whatsapp/settings', {
+        method: 'PUT',
+        credentials: 'include',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(s),
+      })
+      const d = await r.json()
+      if (!r.ok) throw new Error(d.message || 'Could not save.')
+      setS(d.settings)
+      onNotice('Message settings saved.')
+    } catch (e) { onError(e.message) } finally { setBusy(false) }
+  }
+
+  if (!s) return null
+
+  const toggleVar = (v) => setS({
+    ...s,
+    variables: s.variables.includes(v)
+      ? s.variables.filter((x) => x !== v)
+      : [...s.variables, v],
+  })
+
+  return (
+    <details className="wa-settings" open={!s.templateName}>
+      <summary>Message settings</summary>
+
+      {!s.configured && (
+        <div className="wa-error" role="alert">
+          WhatsApp is not connected. Set <code>WHATSAPP_TOKEN</code> and{' '}
+          <code>WHATSAPP_PHONE_ID</code> as Worker secrets, then reload.
+        </div>
+      )}
+
+      <p className="wa-sub">
+        WhatsApp only lets a business send a message it started if the wording
+        has been approved by Meta in advance. So the sentence lives in a
+        template registered at Meta, and what you choose here is which template
+        to use and what to put in its blanks.
+      </p>
+
+      <label className="wa-field">
+        <span>Template name</span>
+        <input
+          value={s.templateName}
+          placeholder="fetch_pod_refilled"
+          onChange={(e) => setS({ ...s, templateName: e.target.value })}
+        />
+        <em>Exactly as registered at Meta — lowercase, digits and underscores.</em>
+      </label>
+
+      <label className="wa-field">
+        <span>Language</span>
+        <input
+          value={s.languageCode}
+          placeholder="en_US"
+          onChange={(e) => setS({ ...s, languageCode: e.target.value })}
+        />
+        <em>The language code on the approved template, e.g. en_US or en_GB.</em>
+      </label>
+
+      <fieldset className="wa-field">
+        <legend>What fills the blanks</legend>
+        <em>
+          Tick in the order the template uses them: the first ticked fills
+          &#123;&#123;1&#125;&#125;, the second &#123;&#123;2&#125;&#125;.
+        </em>
+        {VARIABLE_FIELDS.map((f) => (
+          <label key={f.value} className="wa-check">
+            <input
+              type="checkbox"
+              checked={s.variables.includes(f.value)}
+              onChange={() => toggleVar(f.value)}
+            />
+            <span>
+              {f.label}
+              {s.variables.includes(f.value)
+                && ` — fills {{${s.variables.indexOf(f.value) + 1}}}`}
+            </span>
+          </label>
+        ))}
+      </fieldset>
+
+      <label className="wa-field">
+        <span>Approved wording, for reference</span>
+        <textarea
+          rows={6} value={s.bodyPreview}
+          placeholder={SUGGESTED_BODY}
+          onChange={(e) => setS({ ...s, bodyPreview: e.target.value })}
+        />
+        <em>
+          A copy of what you registered at Meta, shown here so the panel can
+          display what is about to go out. Editing it changes nothing at Meta.
+        </em>
+      </label>
+
+      <button
+        type="button" className="abtn"
+        onClick={() => setS({ ...s, bodyPreview: SUGGESTED_BODY, variables: ['pod_label'] })}
+      >
+        Use the suggested wording
+      </button>
+
+      <label className="wa-check wa-enable">
+        <input
+          type="checkbox" checked={s.enabled}
+          onChange={(e) => setS({ ...s, enabled: e.target.checked })}
+        />
+        <span>Sending is on</span>
+      </label>
+
+      <div className="wa-actions">
+        <button type="button" className="abtn" onClick={save} disabled={busy}>
+          {busy ? 'Saving…' : 'Save settings'}
+        </button>
+      </div>
+
+      {s.updatedAt && (
+        <p className="wa-fine">Last changed {s.updatedAt}{s.updatedBy ? ` by ${s.updatedBy}` : ''}.</p>
+      )}
+    </details>
+  )
+}
+
 export default function Whatsapp() {
   const [data, setData] = useState(null)
   const [error, setError] = useState(null)
   const [busy, setBusy] = useState(false)
+  const [notice, setNotice] = useState(null)
   const [pod, setPod] = useState('')
   const [status, setStatus] = useState('active')
 
@@ -136,6 +303,9 @@ export default function Whatsapp() {
       </div>
 
       {error && <div className="wa-error" role="alert">{error}</div>}
+
+      <Settings onError={setError} onNotice={(m) => { setError(null); setNotice(m) }} />
+      {notice && <div className="wa-notice" role="status">{notice}</div>}
 
       {stats && (
         <div className="wa-stats">

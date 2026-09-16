@@ -269,7 +269,10 @@
 
 .pod-card-actions {
   display: flex;
-  gap: 0.35rem;
+  /* Four actions do not fit one line in a card this narrow, and without
+     wrapping the last one is clipped off the edge where nobody finds it. */
+  flex-wrap: wrap;
+  gap: 0.35rem 0.75rem;
   margin-top: auto;
   padding-top: 0.5rem;
 }
@@ -291,4 +294,49 @@
 @media (max-width: 480px) {
   .pod-grid { grid-template-columns: 1fr; }
   .pod-form { padding: 1.1rem; }
+}
+
+/* ------------------------------------------------- edit + notify ------- */
+
+.pod-card-actions .pod-notify {
+  padding: 0.2rem 0.55rem;
+  border-radius: var(--radius-pill, 999px);
+  white-space: nowrap;
+}
+.pod-card-actions .pod-notify:not(:disabled) {
+  background: #16a34a;
+  color: #fff;
+  font-weight: 700;
+}
+.pod-notify:disabled { opacity: 0.45; cursor: not-allowed; }
+
+.pod-edit {
+  margin-top: 0.85rem;
+  padding-top: 0.85rem;
+  border-top: 1px dashed var(--ink-200);
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+.pod-edit label { display: flex; flex-direction: column; gap: 0.3rem; }
+.pod-edit span { font-size: 0.74rem; font-weight: 700; color: var(--ink-700); }
+.pod-edit input {
+  padding: 0.55rem 0.7rem;
+  border: 1.5px solid var(--ink-200);
+  border-radius: var(--radius-md);
+  font-size: 16px; /* no iOS zoom */
+  color: var(--ink-900);
+  background: var(--ink-0);
+}
+.pod-edit input:focus {
+  outline: none; border-color: var(--brand-500);
+  box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.12);
+}
+.pod-edit-fixed, .pod-edit-note {
+  font-size: 0.75rem; color: var(--ink-500); line-height: 1.5; margin: 0;
+}
+.pod-edit-fixed code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  background: var(--ink-50, #f8fafc);
+  padding: 0.05rem 0.3rem; border-radius: 4px;
 }

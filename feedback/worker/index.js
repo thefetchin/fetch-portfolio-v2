@@ -1,4 +1,4 @@
-import { validateSubmission } from './validate.js'
+import { validateSubmission, cleanText } from './validate.js'
 import { verifySession, handleLogin, handleLogout, requireRole } from './auth.js'
 import {
   validateDebitNote, financialYear, istDateString,
@@ -6,6 +6,9 @@ import {
 } from './invoicing.js'
 import { beginIdempotent, maybePrune } from './idempotency.js'
 import { routeInventory } from './inv-routes.js'
+import {
+  handleSettingsGet, handleSettingsPut, handlePodNotify, handlePodSendLog,
+} from './whatsapp-send.js'
 import {
   SUBMISSION_STATUSES, DEBIT_NOTE_STATUSES, WHATSAPP_STATUSES, WA_CONSENT_TEXT,
 } from '../shared/constants.js'
@@ -507,6 +510,45 @@ async function handleAdminPodCreate(request, env) {
   })
 }
 
+/**
+ * Edits a Pod's display details.
+ *
+ * The pod_id is deliberately NOT editable. It is baked into the printed QR
+ * code and signed with QR_SECRET, so changing it would silently break every
+ * sticker already stuck to a machine -- and the person changing a display name
+ * would have no reason to expect that.
+ *
+ * These fields are not cosmetic: they are what the WhatsApp refill message
+ * puts in front of a customer, so they get the same cleaning as anything else
+ * that reaches a stranger.
+ */
+async function handleAdminPodEdit(request, env, podId) {
+  let body
+  try {
+    body = await request.json()
+  } catch {
+    return json({ error: 'bad_json', message: 'Malformed request.' }, 400)
+  }
+
+  const existing = await env.DB.prepare(
+    'SELECT pod_id FROM pods WHERE pod_id = ?1'
+  ).bind(podId).first()
+  if (!existing) return json({ error: 'not_found', message: 'We could not find that Pod.' }, 404)
+
+  const label = cleanText(body.label, 60)
+  if (!label) {
+    return json({ error: 'validation', message: 'A Pod needs a display name.' }, 422)
+  }
+  const location = cleanText(body.location, 120)
+  const city = cleanText(body.city, 60)
+
+  await env.DB.prepare(
+    'UPDATE pods SET label = ?2, location = ?3, city = ?4 WHERE pod_id = ?1'
+  ).bind(podId, label, location, city).run()
+
+  return json({ ok: true, pod: { podId, label, location, city } })
+}
+
 async function handleAdminPodToggle(request, env, podId) {
   let body
   try {
@@ -748,9 +790,31 @@ export default {
           return await handleDebitNoteStatus(request, env, dnMatch[1])
         }
 
+        if (pathname === '/api/admin/whatsapp/settings' && request.method === 'GET') {
+          return await handleSettingsGet(env, json)
+        }
+        if (pathname === '/api/admin/whatsapp/settings' && request.method === 'PUT') {
+          return await handleSettingsPut(request, env, json, auth.email)
+        }
+
+        const notifyMatch = pathname.match(/^\/api\/admin\/pods\/([A-Za-z0-9-]+)\/notify$/)
+        if (notifyMatch && request.method === 'POST') {
+          return await handlePodNotify(request, env, json, auth.email, notifyMatch[1].toUpperCase())
+        }
+        const sendLogMatch = pathname.match(/^\/api\/admin\/pods\/([A-Za-z0-9-]+)\/sends$/)
+        if (sendLogMatch && request.method === 'GET') {
+          return await handlePodSendLog(env, json, sendLogMatch[1].toUpperCase())
+        }
+
         const podMatch = pathname.match(/^\/api\/admin\/pods\/([A-Za-z0-9-]+)$/)
         if (podMatch && request.method === 'PATCH') {
-          return await handleAdminPodToggle(request, env, podMatch[1].toUpperCase())
+          // `active` alone is the retire/restore toggle; anything else is an
+          // edit of the display details.
+          const only = await request.clone().json().catch(() => ({}))
+          const isToggleOnly = Object.keys(only).length === 1 && 'active' in only
+          return isToggleOnly
+            ? await handleAdminPodToggle(request, env, podMatch[1].toUpperCase())
+            : await handleAdminPodEdit(request, env, podMatch[1].toUpperCase())
         }
         const updateMatch = pathname.match(/^\/api\/admin\/submissions\/([\w-]+)$/)
         if (updateMatch && request.method === 'PATCH') {

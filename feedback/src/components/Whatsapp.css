@@ -167,3 +167,49 @@
 @media (max-width: 640px) {
   .wa-head { flex-direction: column; }
 }
+
+/* ------------------------------------------------------------- settings -- */
+
+.wa-settings {
+  background: var(--ink-0);
+  border: 1px solid var(--ink-100);
+  border-radius: var(--radius-lg);
+  padding: 1rem 1.25rem;
+}
+.wa-settings summary { cursor: pointer; font-weight: 700; padding: 0.2rem 0; }
+.wa-settings[open] summary { margin-bottom: 0.75rem; }
+
+.wa-field { display: flex; flex-direction: column; gap: 0.3rem; margin: 0.9rem 0; border: none; padding: 0; }
+.wa-field > span, .wa-field > legend {
+  font-size: 0.78rem; font-weight: 700; color: var(--ink-700); padding: 0;
+}
+.wa-field em {
+  font-style: normal; font-size: 0.76rem; color: var(--ink-500); line-height: 1.5;
+}
+.wa-field input, .wa-field textarea {
+  padding: 0.6rem 0.75rem;
+  border: 1.5px solid var(--ink-200);
+  border-radius: var(--radius-md);
+  font-size: 15px;
+  color: var(--ink-900);
+  background: var(--ink-0);
+  font-family: inherit;
+}
+.wa-field textarea { resize: vertical; line-height: 1.55; }
+.wa-field input:focus, .wa-field textarea:focus {
+  outline: none; border-color: var(--brand-500);
+  box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.14);
+}
+
+.wa-check { display: flex; align-items: center; gap: 0.55rem; font-size: 0.88rem; padding: 0.3rem 0; cursor: pointer; }
+.wa-check input { width: 17px; height: 17px; accent-color: var(--brand-600); flex-shrink: 0; }
+.wa-enable { margin-top: 1rem; font-weight: 600; }
+
+.wa-notice {
+  background: rgba(22, 163, 74, 0.09);
+  border: 1px solid rgba(22, 163, 74, 0.3);
+  color: #15803d;
+  padding: 0.75rem 1rem;
+  border-radius: var(--radius-md);
+  font-size: 0.9rem;
+}
