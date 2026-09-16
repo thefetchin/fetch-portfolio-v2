@@ -899,7 +899,7 @@ export async function handleChatThread(env, json, waNumber) {
   const rows = await env.DB.prepare(
     `SELECT 'in'  AS direction, message_id AS id, body, received_at AS at,
             NULL AS status, NULL AS error, NULL AS delivery_status, type AS kind,
-            profile_name AS who
+            profile_name AS who, media_id, media_type, media_error
        FROM whatsapp_inbound WHERE wa_number = ?1
      UNION ALL
      SELECT 'out' AS direction, reply_id AS id, body, created_at AS at,
