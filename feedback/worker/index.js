@@ -10,6 +10,7 @@ import {
   handleSettingsGet, handleSettingsPut, handlePodNotify, handleSendLog,
   handleConnectionCheck, handleWebhookVerify, handleWebhook,
   handleInbox, handleInboxUpdate,
+  handleChatList, handleChatThread, handleChatReply,
 } from './whatsapp-send.js'
 import {
   SUBMISSION_STATUSES, DEBIT_NOTE_STATUSES, WHATSAPP_STATUSES, WA_CONSENT_TEXT,
@@ -808,6 +809,16 @@ export default {
           return await handleDebitNoteStatus(request, env, dnMatch[1])
         }
 
+        if (pathname === '/api/admin/whatsapp/chats' && request.method === 'GET') {
+          return await handleChatList(env, json)
+        }
+        const chatMatch = pathname.match(/^\/api\/admin\/whatsapp\/chats\/(\d{10,15})$/)
+        if (chatMatch && request.method === 'GET') {
+          return await handleChatThread(env, json, chatMatch[1])
+        }
+        if (chatMatch && request.method === 'POST') {
+          return await handleChatReply(request, env, json, auth.email, chatMatch[1])
+        }
         if (pathname === '/api/admin/whatsapp/inbox' && request.method === 'GET') {
           return await handleInbox(request, env, json)
         }

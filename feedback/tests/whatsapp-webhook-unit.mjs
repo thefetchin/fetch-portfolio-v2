@@ -96,9 +96,15 @@ eq('and writes nothing', e.DB.runs.length, 0)
 e = env()
 const okRes = await post(e, raw, await sign(raw))
 eq('a correct signature is accepted', okRes.status, 200)
-eq('and writes one row', e.DB.runs.length, 1)
-eq('binding the message id and status',
-  [e.DB.runs[0].args[0], e.DB.runs[0].args[1]], ['wamid.ABC', 'delivered'])
+
+// A status id could belong to a template send OR to a typed reply, and the
+// webhook cannot tell which. Both tables are updated; only one will match.
+eq('it updates both outbound tables', e.DB.runs.length, 2)
+eq('the first is the template sends table', /whatsapp_sends/.test(e.DB.runs[0].sql), true)
+eq('the second is the replies table', /whatsapp_replies/.test(e.DB.runs[1].sql), true)
+eq('both bound to the same message id and status',
+  e.DB.runs.map((r) => [r.args[0], r.args[1]]),
+  [['wamid.ABC', 'delivered'], ['wamid.ABC', 'delivered']])
 
 /* ---------------------------------------------------------- the payload -- */
 section('reading what Meta sends')

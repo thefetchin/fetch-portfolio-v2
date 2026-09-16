@@ -540,6 +540,19 @@ export async function handleWebhook(request, env, ctx) {
                 delivery_updated_at = datetime('now')
           WHERE wa_message_id = ?1`
       ).bind(id, status, err).run()
+
+      // A reply typed in the dashboard gets a wamid too, and its status
+      // arrives on this same webhook. Both tables are updated because the id
+      // could belong to either and only one will match.
+      await env.DB.prepare(
+        `UPDATE whatsapp_replies
+            SET delivery_status = CASE
+                  WHEN delivery_status = 'read' THEN 'read'
+                  WHEN delivery_status = 'delivered' AND ?2 = 'sent' THEN 'delivered'
+                  ELSE ?2 END,
+                delivery_error = COALESCE(?3, delivery_error)
+          WHERE wa_message_id = ?1`
+      ).bind(id, status, err).run()
     }
 
     for (const { m, name } of inbound) {
@@ -649,4 +662,177 @@ export async function handleInboxUpdate(request, env, json, actor, messageId) {
 
   if (!res.meta?.changes) return json({ error: 'not_found', message: 'No such message.' }, 404)
   return json({ ok: true, handled })
+}
+
+/* ------------------------------------------------------------ the chats -- */
+
+/** How long after a customer's message we may reply with ordinary text. */
+export const REPLY_WINDOW_HOURS = 24
+
+/**
+ * Sends a free-text message.
+ *
+ * Only legal inside the 24-hour window. Outside it Meta rejects with 131047
+ * and the only way to reach someone is an approved template -- which is a
+ * different thing entirely, and why this is a separate function from
+ * sendTemplate rather than a flag on it.
+ */
+export async function sendText(env, { to, body }) {
+  if (!env.WHATSAPP_TOKEN || !env.WHATSAPP_PHONE_ID) {
+    throw new WhatsappError(
+      'WhatsApp is not configured. Set WHATSAPP_TOKEN and WHATSAPP_PHONE_ID as Worker secrets.',
+      { code: 'whatsapp_not_configured', status: 503 }
+    )
+  }
+
+  const base = env.WHATSAPP_BASE_URL || 'https://graph.facebook.com'
+  let res
+  try {
+    res = await fetch(`${base}/${GRAPH_VERSION}/${env.WHATSAPP_PHONE_ID}/messages`, {
+      method: 'POST',
+      headers: {
+        authorization: `Bearer ${env.WHATSAPP_TOKEN}`,
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({
+        messaging_product: 'whatsapp',
+        recipient_type: 'individual',
+        to,
+        type: 'text',
+        text: { preview_url: false, body },
+      }),
+    })
+  } catch (err) {
+    throw new WhatsappError(`Could not reach WhatsApp: ${err.message}`, { status: 502 })
+  }
+
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok) {
+    const e = data?.error || {}
+    const expired = res.status === 401 || e.code === 190
+    throw new WhatsappError(e.message || `WhatsApp refused the message (HTTP ${res.status}).`, {
+      code: expired ? 'whatsapp_token_expired' : 'whatsapp_rejected',
+      status: expired ? 503 : 502,
+    })
+  }
+  return { ok: true, messageId: data?.messages?.[0]?.id || null }
+}
+
+/** Hours since this person last wrote to us, or null if they never have. */
+async function hoursSinceLastInbound(env, waNumber) {
+  const row = await env.DB.prepare(
+    `SELECT (julianday('now') - julianday(MAX(received_at))) * 24 AS hours
+       FROM whatsapp_inbound WHERE wa_number = ?1`
+  ).bind(waNumber).first()
+  return row?.hours == null ? null : Number(row.hours)
+}
+
+/** One row per person who has written to us, newest conversation first. */
+export async function handleChatList(env, json) {
+  const rows = await env.DB.prepare(
+    `SELECT i.wa_number,
+            MAX(i.profile_name)                                   AS profile_name,
+            MAX(i.received_at)                                    AS last_inbound_at,
+            COUNT(*)                                              AS inbound_count,
+            SUM(CASE WHEN i.handled_at IS NULL THEN 1 ELSE 0 END) AS open_count,
+            (julianday('now') - julianday(MAX(i.received_at))) * 24 AS hours_since,
+            (SELECT body FROM whatsapp_inbound x
+              WHERE x.wa_number = i.wa_number
+              ORDER BY x.received_at DESC LIMIT 1)                AS last_body
+       FROM whatsapp_inbound i
+      GROUP BY i.wa_number
+      ORDER BY MAX(i.received_at) DESC
+      LIMIT 200`
+  ).all()
+
+  const chats = (rows.results || []).map((r) => ({
+    ...r,
+    windowOpen: r.hours_since != null && r.hours_since < REPLY_WINDOW_HOURS,
+    hoursLeft: r.hours_since == null ? null
+      : Math.max(0, Math.round((REPLY_WINDOW_HOURS - r.hours_since) * 10) / 10),
+  }))
+  return json({ chats })
+}
+
+/**
+ * One conversation, both directions.
+ *
+ * Template sends are included as well as replies. They are part of what this
+ * person has received from us, and a thread that hid them would have someone
+ * puzzling over a reply to a message they could not see.
+ */
+export async function handleChatThread(env, json, waNumber) {
+  const rows = await env.DB.prepare(
+    `SELECT 'in'  AS direction, message_id AS id, body, received_at AS at,
+            NULL AS status, NULL AS error, NULL AS delivery_status, type AS kind,
+            profile_name AS who
+       FROM whatsapp_inbound WHERE wa_number = ?1
+     UNION ALL
+     SELECT 'out' AS direction, reply_id AS id, body, created_at AS at,
+            status, error, delivery_status, 'text' AS kind, sent_by AS who
+       FROM whatsapp_replies WHERE wa_number = ?1
+     UNION ALL
+     SELECT 'out' AS direction, send_id AS id,
+            'Template: ' || template AS body, created_at AS at,
+            status, error, delivery_status, 'template' AS kind, NULL AS who
+       FROM whatsapp_sends WHERE wa_number = ?1
+     ORDER BY at ASC
+     LIMIT 300`
+  ).bind(waNumber).all()
+
+  const hours = await hoursSinceLastInbound(env, waNumber)
+  return json({
+    waNumber,
+    messages: rows.results || [],
+    windowOpen: hours != null && hours < REPLY_WINDOW_HOURS,
+    hoursLeft: hours == null ? null
+      : Math.max(0, Math.round((REPLY_WINDOW_HOURS - hours) * 10) / 10),
+  })
+}
+
+/** Sends a reply, refusing when the window has closed. */
+export async function handleChatReply(request, env, json, actor, waNumber) {
+  let body
+  try { body = await request.json() } catch { body = {} }
+
+  const text = cleanText(body.body, 1000)
+  if (!text) return json({ error: 'validation', message: 'Write something to send.' }, 422)
+
+  const hours = await hoursSinceLastInbound(env, waNumber)
+  if (hours == null) {
+    return json({
+      error: 'no_window',
+      message: 'This person has never messaged us, so only an approved template can reach them.',
+    }, 409)
+  }
+  // Checked here as well as by Meta, so the answer explains itself rather than
+  // arriving as error 131047 from someone else's API.
+  if (hours >= REPLY_WINDOW_HOURS) {
+    return json({
+      error: 'window_closed',
+      message: `They last wrote ${Math.round(hours)} hours ago. After ${REPLY_WINDOW_HOURS} `
+        + 'hours only an approved template can be sent, not a typed reply.',
+    }, 409)
+  }
+
+  const replyId = crypto.randomUUID()
+  try {
+    const r = await sendText(env, { to: waNumber, body: text })
+    await env.DB.prepare(
+      `INSERT INTO whatsapp_replies (reply_id, wa_number, body, wa_message_id, status, sent_by)
+       VALUES (?1, ?2, ?3, ?4, 'sent', ?5)`
+    ).bind(replyId, waNumber, text, r.messageId, actor || null).run()
+    return json({ ok: true, replyId, messageId: r.messageId })
+  } catch (err) {
+    // A failed reply is still written down. Otherwise the thread shows nothing
+    // and it looks as though nobody ever tried.
+    await env.DB.prepare(
+      `INSERT INTO whatsapp_replies (reply_id, wa_number, body, status, error, sent_by)
+       VALUES (?1, ?2, ?3, 'failed', ?4, ?5)`
+    ).bind(replyId, waNumber, text, String(err.message || err).slice(0, 300), actor || null).run()
+    return json({
+      error: err.code || 'whatsapp_failed',
+      message: err.message || 'Could not send that reply.',
+    }, err.status || 502)
+  }
 }

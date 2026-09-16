@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { WHATSAPP_STATUSES } from '../../shared/constants.js'
 import './Whatsapp.css'
 
@@ -195,6 +195,163 @@ function Settings({ onError, onNotice }) {
 
       {s.updatedAt && (
         <p className="wa-fine">Last changed {s.updatedAt}{s.updatedBy ? ` by ${s.updatedBy}` : ''}.</p>
+      )}
+    </details>
+  )
+}
+
+/**
+ * WhatsApp conversations.
+ *
+ * The 24-hour rule governs everything here: a reply may be ordinary text only
+ * within 24 hours of the customer's last message, and after that only an
+ * approved template will send. The composer is disabled with the reason on
+ * screen rather than letting someone type a paragraph and watch it fail --
+ * the failure would arrive as Meta's error 131047 and look like our bug.
+ */
+function Chats({ onError }) {
+  const [chats, setChats] = useState(null)
+  const [active, setActive] = useState(null)
+  const [thread, setThread] = useState(null)
+  const [draft, setDraft] = useState('')
+  const [busy, setBusy] = useState(false)
+  const endRef = useRef(null)
+
+  const loadChats = useCallback(async () => {
+    try {
+      const r = await fetch('/api/admin/whatsapp/chats', { credentials: 'include' })
+      const d = await r.json()
+      if (!r.ok) throw new Error(d.message || 'Could not load conversations.')
+      setChats(d.chats || [])
+    } catch (e) { onError(e.message) }
+  }, [onError])
+
+  const loadThread = useCallback(async (num) => {
+    if (!num) return
+    try {
+      const r = await fetch(`/api/admin/whatsapp/chats/${num}`, { credentials: 'include' })
+      const d = await r.json()
+      if (!r.ok) throw new Error(d.message || 'Could not load that conversation.')
+      setThread(d)
+    } catch (e) { onError(e.message) }
+  }, [onError])
+
+  useEffect(() => { loadChats() }, [loadChats])
+  useEffect(() => { loadThread(active) }, [active, loadThread])
+  useEffect(() => { endRef.current?.scrollIntoView({ block: 'end' }) }, [thread])
+
+  const send = async () => {
+    const body = draft.trim()
+    if (!body || !active) return
+    setBusy(true)
+    try {
+      const r = await fetch(`/api/admin/whatsapp/chats/${active}`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ body }),
+      })
+      const d = await r.json()
+      if (!r.ok) throw new Error(d.message || 'Could not send.')
+      setDraft('')
+      await loadThread(active)
+      await loadChats()
+    } catch (e) { onError(e.message) } finally { setBusy(false) }
+  }
+
+  const list = chats || []
+
+  return (
+    <details className="wa-settings" open>
+      <summary>Chats{list.some((c) => c.open_count > 0) ? ' — replies waiting' : ''}</summary>
+
+      {!list.length && (
+        <p className="wa-fine">
+          No conversations yet. They appear as soon as a customer messages
+          +91 90195 26185.
+        </p>
+      )}
+
+      {!!list.length && (
+        <div className="wa-chat">
+          <ul className="wa-chat-list">
+            {list.map((c) => (
+              <li key={c.wa_number}>
+                <button
+                  type="button"
+                  className={`wa-chat-item ${active === c.wa_number ? 'is-active' : ''}`}
+                  onClick={() => setActive(c.wa_number)}
+                >
+                  <span className="wa-chat-who">
+                    {c.profile_name || fmtNumber(c.wa_number)}
+                    {c.open_count > 0 && <em className="wa-dot" aria-label="needs a reply" />}
+                  </span>
+                  <span className="wa-chat-last">{c.last_body || '(no text)'}</span>
+                  <span className="wa-fine">
+                    {fmtDate(c.last_inbound_at)}
+                    {c.windowOpen ? ` · ${c.hoursLeft}h left to reply` : ' · window closed'}
+                  </span>
+                </button>
+              </li>
+            ))}
+          </ul>
+
+          <div className="wa-chat-thread">
+            {!active && <p className="wa-fine">Pick a conversation.</p>}
+
+            {active && thread && (
+              <>
+                <div className="wa-bubbles">
+                  {thread.messages.map((m) => (
+                    <div key={m.id} className={`wa-bubble is-${m.direction} ${m.kind === 'template' ? 'is-tpl' : ''}`}>
+                      <div className="wa-bubble-body">{m.body || `(${m.kind})`}</div>
+                      <div className="wa-bubble-meta">
+                        {fmtDate(m.at)}
+                        {m.direction === 'out' && m.status === 'failed' && ' · failed'}
+                        {m.direction === 'out' && m.delivery_status && ` · ${m.delivery_status}`}
+                        {m.error ? ` · ${m.error}` : ''}
+                      </div>
+                    </div>
+                  ))}
+                  <div ref={endRef} />
+                </div>
+
+                {thread.windowOpen ? (
+                  <div className="wa-composer">
+                    <textarea
+                      rows={2} maxLength={1000} value={draft}
+                      placeholder={`Reply to ${fmtNumber(active)}…`}
+                      onChange={(e) => setDraft(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) send()
+                      }}
+                    />
+                    <div className="wa-composer-actions">
+                      <span className="wa-fine">
+                        {thread.hoursLeft}h left · ⌘↵ to send
+                      </span>
+                      <button
+                        type="button" className="abtn"
+                        onClick={send} disabled={busy || !draft.trim()}
+                      >
+                        {busy ? 'Sending…' : 'Send'}
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="wa-composer is-closed">
+                    <strong>The 24-hour reply window has closed.</strong>
+                    <p className="wa-fine">
+                      WhatsApp only allows a typed reply within 24 hours of a
+                      customer&apos;s message. Reaching them now needs an approved
+                      template, which is sent from Pods &amp; QR codes.
+                    </p>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        </div>
       )}
     </details>
   )
@@ -625,6 +782,7 @@ export default function Whatsapp() {
       {error && <div className="wa-error" role="alert">{error}</div>}
 
       <Connection onError={setError} />
+      <Chats onError={setError} />
       <Inbox onError={setError} />
       <Settings onError={setError} onNotice={(m) => { setError(null); setNotice(m) }} />
       <SendLog onError={setError} />
