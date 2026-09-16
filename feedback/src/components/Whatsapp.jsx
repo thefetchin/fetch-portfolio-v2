@@ -63,6 +63,22 @@ function Settings({ onError, onNotice }) {
   const [s, setS] = useState(null)
   const [tpl, setTpl] = useState(null)
   const [media, setMedia] = useState(null)
+  const [testTo, setTestTo] = useState('')
+
+  const testSend = async () => {
+    setBusy(true)
+    try {
+      const r = await fetch('/api/admin/whatsapp/test-send', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ to: testTo }),
+      })
+      const d = await r.json()
+      if (!r.ok) throw new Error(d.message || 'Could not send the test.')
+      onNotice?.(d.message)
+    } catch (e) { onError(e.message) } finally { setBusy(false) }
+  }
   const [uploading, setUploading] = useState(false)
   const [busy, setBusy] = useState(false)
 
@@ -869,22 +885,6 @@ function Connection({ onError }) {
 
   const [waba, setWaba] = useState(null)
   const [pin, setPin] = useState('')
-  const [testTo, setTestTo] = useState('')
-
-  const testSend = async () => {
-    setBusy(true)
-    try {
-      const r = await fetch('/api/admin/whatsapp/test-send', {
-        method: 'POST',
-        credentials: 'include',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ to: testTo }),
-      })
-      const d = await r.json()
-      if (!r.ok) throw new Error(d.message || 'Could not send the test.')
-      onNotice?.(d.message)
-    } catch (e) { onError(e.message) } finally { setBusy(false) }
-  }
 
   /* The PIN goes straight to Meta and is never stored — not here, not in the
      Worker, not in D1. It is cleared from the form either way. */
