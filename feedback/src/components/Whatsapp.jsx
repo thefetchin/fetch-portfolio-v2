@@ -317,6 +317,29 @@ function Settings({ onError, onNotice }) {
         Use the suggested wording
       </button>
 
+      {/* A test before the real thing. Pressing Notify to check a change means
+          every subscriber on that Pod gets it, and there is no unsending. */}
+      <div className="wa-field">
+        <span>Send yourself a test</span>
+        <div className="wa-register">
+          <input
+            inputMode="tel" placeholder="9538011262" value={testTo}
+            onChange={(e) => setTestTo(e.target.value)}
+          />
+          <button
+            type="button" className="abtn"
+            onClick={testSend} disabled={busy || !testTo.trim()}
+          >
+            {busy ? 'Sending…' : 'Send test'}
+          </button>
+        </div>
+        <em>
+          Sends the template above to one number, using a real Pod&apos;s details for
+          the wording. It is logged like any other send, because a test that
+          reached a handset is a real message.
+        </em>
+      </div>
+
       <label className="wa-check wa-enable">
         <input
           type="checkbox" checked={s.enabled}
@@ -846,6 +869,22 @@ function Connection({ onError }) {
 
   const [waba, setWaba] = useState(null)
   const [pin, setPin] = useState('')
+  const [testTo, setTestTo] = useState('')
+
+  const testSend = async () => {
+    setBusy(true)
+    try {
+      const r = await fetch('/api/admin/whatsapp/test-send', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ to: testTo }),
+      })
+      const d = await r.json()
+      if (!r.ok) throw new Error(d.message || 'Could not send the test.')
+      onNotice?.(d.message)
+    } catch (e) { onError(e.message) } finally { setBusy(false) }
+  }
 
   /* The PIN goes straight to Meta and is never stored — not here, not in the
      Worker, not in D1. It is cleared from the form either way. */

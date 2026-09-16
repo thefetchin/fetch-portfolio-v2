@@ -1,4 +1,4 @@
-import { cleanText } from './validate.js'
+import { cleanText, cleanWhatsApp } from './validate.js'
 
 /**
  * Sending the refill message over the WhatsApp Cloud API.
@@ -1519,4 +1519,83 @@ export async function handleRegisterNumber(request, env, json) {
     ok: true,
     message: 'Registered. The number can now send and receive — re-check the connection.',
   })
+}
+
+/* ------------------------------------------------------------ test send -- */
+
+/**
+ * Sends the configured template to ONE number.
+ *
+ * Exists so a change can be checked before it reaches subscribers. Pressing
+ * Notify to test a new number, template or header means every person on that
+ * Pod gets the message -- and there is no unsending it.
+ *
+ * Logged like any other send, because a test that reached a real handset is a
+ * real message and belongs in the record.
+ */
+export async function handleTestSend(request, env, json) {
+  let body
+  try { body = await request.json() } catch { body = {} }
+
+  const to = cleanWhatsApp(body.to)
+  if (!to) {
+    return json({
+      error: 'validation',
+      message: 'Give a WhatsApp number to test with, e.g. 9538011262.',
+    }, 422)
+  }
+
+  const settings = await getSettings(env)
+  if (!settings.templateName) {
+    return json({ error: 'whatsapp_disabled', message: 'Choose a template first.' }, 409)
+  }
+
+  // Variable values come from a real Pod so the test reads like the real
+  // thing. Any active Pod will do when none is named.
+  const pod = body.podId
+    ? await env.DB.prepare(
+        'SELECT pod_id, label, location, city FROM pods WHERE pod_id = ?1'
+      ).bind(String(body.podId).toUpperCase()).first()
+    : await env.DB.prepare(
+        'SELECT pod_id, label, location, city FROM pods WHERE active = 1 ORDER BY created_at LIMIT 1'
+      ).first()
+
+  if (!pod) return json({ error: 'not_found', message: 'No Pod to take the wording from.' }, 404)
+
+  const batchId = crypto.randomUUID()
+  const sendId = crypto.randomUUID()
+
+  try {
+    const r = await sendTemplate(env, {
+      to,
+      template: settings.templateName,
+      language: settings.languageCode,
+      components: buildComponents(settings, pod),
+      phoneNumberId: settings.phoneNumberId,
+    })
+    await env.DB.prepare(
+      `INSERT INTO whatsapp_sends
+         (send_id, batch_id, pod_id, wa_number, template, status, wa_message_id)
+       VALUES (?1, ?2, ?3, ?4, ?5, 'sent', ?6)`
+    ).bind(sendId, batchId, pod.pod_id, to, settings.templateName, r.messageId).run()
+
+    return json({
+      ok: true,
+      to,
+      messageId: r.messageId,
+      message: `Sent to ${to}. Watch the send log for whether it is delivered.`,
+    })
+  } catch (err) {
+    await env.DB.prepare(
+      `INSERT INTO whatsapp_sends
+         (send_id, batch_id, pod_id, wa_number, template, status, error)
+       VALUES (?1, ?2, ?3, ?4, ?5, 'failed', ?6)`
+    ).bind(sendId, batchId, pod.pod_id, to, settings.templateName,
+           String(err.message || err).slice(0, 300)).run()
+
+    return json({
+      error: err.code || 'whatsapp_failed',
+      message: err.message || 'Could not send the test.',
+    }, err.status || 502)
+  }
 }
