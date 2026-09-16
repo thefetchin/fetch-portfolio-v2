@@ -397,7 +397,15 @@ export async function handleConnectionCheck(env, json) {
   }
 
   const base = env.WHATSAPP_BASE_URL || 'https://graph.facebook.com'
-  const fields = 'display_phone_number,verified_name,quality_rating,platform_type,code_verification_status,name_status,throughput'
+  // `status` is the field that says whether registration actually completed --
+  // CONNECTED means the number can send AND receive. platform_type only says
+  // which platform it is assigned to, which is not the same thing and was
+  // read as though it were.
+  const fields = [
+    'display_phone_number', 'verified_name', 'quality_rating', 'platform_type',
+    'code_verification_status', 'name_status', 'throughput', 'status',
+    'is_official_business_account', 'messaging_limit_tier',
+  ].join(',')
 
   let res
   try {
@@ -424,6 +432,11 @@ export async function handleConnectionCheck(env, json) {
     ok: true,
     phoneNumber: data.display_phone_number || null,
     verifiedName: data.verified_name || null,
+    // CONNECTED is the only value that means the number can send and receive.
+    status: data.status || null,
+    codeVerification: data.code_verification_status || null,
+    messagingLimitTier: data.messaging_limit_tier || null,
+    officialBusinessAccount: data.is_official_business_account ?? null,
     qualityRating: data.quality_rating || null,
     // 'CLOUD_API' on a real number. Meta's own free test numbers report
     // differently and can only message an allow-list, which is the usual
@@ -926,4 +939,61 @@ export async function handleWabaSubscribe(env, json) {
     message: 'This WhatsApp account now routes its messages and statuses to us. '
       + 'Send a message to the business number to confirm.',
   })
+}
+
+/* -------------------------------------------------------- canned replies -- */
+
+/**
+ * Pre-typed replies.
+ *
+ * Ordinary free text, not templates, so they are only sendable inside the
+ * 24-hour window -- which is precisely when someone is typing the same refund
+ * explanation for the fifth time.
+ *
+ * They are INSERTED into the composer rather than sent directly. The person
+ * still reads it and presses Send, so the wording can be adjusted to the actual
+ * question instead of firing a canned paragraph at someone who asked something
+ * slightly different.
+ */
+export async function handleCannedList(env, json) {
+  const rows = await env.DB.prepare(
+    `SELECT canned_id, title, body, sort_order, created_at, created_by
+       FROM whatsapp_canned_replies
+      ORDER BY sort_order, created_at`
+  ).all()
+  return json({ canned: rows.results || [] })
+}
+
+export async function handleCannedCreate(request, env, json, actor) {
+  let body
+  try { body = await request.json() } catch { body = {} }
+
+  const title = cleanText(body.title, 60)
+  // Newlines are meaningful here -- a refund explanation is a paragraph or
+  // two -- so cleanText, which collapses whitespace, would ruin it.
+  const text = typeof body.body === 'string'
+    ? body.body.replace(/\r\n/g, '\n').replace(/[^\S\n]+/g, ' ').trim().slice(0, 1000)
+    : ''
+
+  if (!title) return json({ error: 'validation', message: 'Give it a name.' }, 422)
+  if (!text) return json({ error: 'validation', message: 'Write the message.' }, 422)
+
+  // Same id style as the rest of this module.
+  const id = `cn_${crypto.randomUUID().slice(0, 8)}`
+  const order = Number.isInteger(body.sortOrder) ? body.sortOrder : 100
+
+  await env.DB.prepare(
+    `INSERT INTO whatsapp_canned_replies (canned_id, title, body, sort_order, created_by)
+     VALUES (?1, ?2, ?3, ?4, ?5)`
+  ).bind(id, title, text, order, actor || null).run()
+
+  return json({ ok: true, cannedId: id })
+}
+
+export async function handleCannedDelete(env, json, cannedId) {
+  const res = await env.DB.prepare(
+    'DELETE FROM whatsapp_canned_replies WHERE canned_id = ?1'
+  ).bind(cannedId).run()
+  if (!res.meta?.changes) return json({ error: 'not_found', message: 'No such reply.' }, 404)
+  return json({ ok: true })
 }

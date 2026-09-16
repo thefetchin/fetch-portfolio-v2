@@ -201,6 +201,113 @@ function Settings({ onError, onNotice }) {
 }
 
 /**
+ * Managing the pre-typed replies.
+ *
+ * Editable here rather than hardcoded so the wording can be fixed by whoever
+ * is answering, at the moment they notice it is wrong -- which is the only
+ * moment anybody ever notices.
+ */
+function CannedManager({ onError, onChanged }) {
+  const [list, setList] = useState([])
+  const [title, setTitle] = useState('')
+  const [body, setBody] = useState('')
+  const [busy, setBusy] = useState(false)
+
+  const load = useCallback(async () => {
+    try {
+      const r = await fetch('/api/admin/whatsapp/canned', { credentials: 'include' })
+      const d = await r.json()
+      if (!r.ok) throw new Error(d.message || 'Could not load the replies.')
+      setList(d.canned || [])
+    } catch (e) { onError(e.message) }
+  }, [onError])
+
+  useEffect(() => { load() }, [load])
+
+  const add = async () => {
+    setBusy(true)
+    try {
+      const r = await fetch('/api/admin/whatsapp/canned', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ title, body }),
+      })
+      const d = await r.json()
+      if (!r.ok) throw new Error(d.message || 'Could not save it.')
+      setTitle(''); setBody('')
+      await load()
+      onChanged?.()
+    } catch (e) { onError(e.message) } finally { setBusy(false) }
+  }
+
+  const remove = async (id, name) => {
+    if (!window.confirm(`Remove "${name}"?`)) return
+    try {
+      const r = await fetch(`/api/admin/whatsapp/canned/${id}`, {
+        method: 'DELETE', credentials: 'include',
+      })
+      if (!r.ok) throw new Error((await r.json()).message || 'Could not remove it.')
+      await load()
+      onChanged?.()
+    } catch (e) { onError(e.message) }
+  }
+
+  return (
+    <details className="wa-settings">
+      <summary>Pre-typed replies ({list.length})</summary>
+
+      <p className="wa-sub">
+        Shown as buttons above the reply box. Choosing one puts the text in the
+        box for you to adjust — it is never sent on its own. These are ordinary
+        replies, so they only work inside the 24-hour window.
+      </p>
+
+      {!!list.length && (
+        <ul className="wa-canned-list">
+          {list.map((c) => (
+            <li key={c.canned_id}>
+              <div>
+                <strong>{c.title}</strong>
+                <p className="wa-canned-body">{c.body}</p>
+              </div>
+              <button
+                type="button" className="abtn abtn--quiet"
+                onClick={() => remove(c.canned_id, c.title)}
+              >
+                Remove
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      <div className="wa-field">
+        <span>Name</span>
+        <input
+          value={title} maxLength={60} placeholder="Refund guidelines"
+          onChange={(e) => setTitle(e.target.value)}
+        />
+      </div>
+      <div className="wa-field">
+        <span>Message</span>
+        <textarea
+          rows={4} maxLength={1000} value={body}
+          placeholder="What should go in the reply box…"
+          onChange={(e) => setBody(e.target.value)}
+        />
+      </div>
+      <button
+        type="button" className="abtn"
+        onClick={add} disabled={busy || !title.trim() || !body.trim()}
+      >
+        {busy ? 'Saving…' : 'Add reply'}
+      </button>
+    </details>
+  )
+}
+
+/**
  * WhatsApp conversations.
  *
  * The 24-hour rule governs everything here: a reply may be ordinary text only
@@ -209,7 +316,7 @@ function Settings({ onError, onNotice }) {
  * screen rather than letting someone type a paragraph and watch it fail --
  * the failure would arrive as Meta's error 131047 and look like our bug.
  */
-function Chats({ onError }) {
+function Chats({ onError, cannedVersion }) {
   const [chats, setChats] = useState(null)
   const [active, setActive] = useState(null)
   const [thread, setThread] = useState(null)
@@ -217,28 +324,69 @@ function Chats({ onError }) {
   const [busy, setBusy] = useState(false)
   const endRef = useRef(null)
 
-  const loadChats = useCallback(async () => {
+  /*
+    `silent` is for the background poll. A refresh the user did not ask for must
+    not raise an error banner -- one dropped request would otherwise paint a red
+    "Failed to fetch" over a working screen every five seconds, and a flaky
+    connection would make the panel look broken when nothing is.
+  */
+  const loadChats = useCallback(async (silent) => {
     try {
       const r = await fetch('/api/admin/whatsapp/chats', { credentials: 'include' })
       const d = await r.json()
       if (!r.ok) throw new Error(d.message || 'Could not load conversations.')
       setChats(d.chats || [])
-    } catch (e) { onError(e.message) }
+    } catch (e) { if (!silent) onError(e.message) }
   }, [onError])
 
-  const loadThread = useCallback(async (num) => {
+  const loadThread = useCallback(async (num, silent) => {
     if (!num) return
     try {
       const r = await fetch(`/api/admin/whatsapp/chats/${num}`, { credentials: 'include' })
       const d = await r.json()
       if (!r.ok) throw new Error(d.message || 'Could not load that conversation.')
       setThread(d)
-    } catch (e) { onError(e.message) }
+    } catch (e) { if (!silent) onError(e.message) }
   }, [onError])
+
+  const [canned, setCanned] = useState([])
+
+  const loadCanned = useCallback(async () => {
+    try {
+      const r = await fetch('/api/admin/whatsapp/canned', { credentials: 'include' })
+      const d = await r.json()
+      if (r.ok) setCanned(d.canned || [])
+    } catch { /* the composer still works without them */ }
+  }, [])
 
   useEffect(() => { loadChats() }, [loadChats])
   useEffect(() => { loadThread(active) }, [active, loadThread])
+  useEffect(() => { loadCanned() }, [loadCanned, cannedVersion])
   useEffect(() => { endRef.current?.scrollIntoView({ block: 'end' }) }, [thread])
+
+  /*
+    Live updates by polling.
+    
+    A WebSocket would need a Durable Object: a Worker request cannot push to a
+    socket opened by a different request, so the webhook that receives a
+    customer message has no route to this browser without one. For a panel with
+    a handful of users, five seconds of latency is indistinguishable and costs
+    no architecture.
+
+    Polling stops while the tab is hidden -- otherwise a forgotten tab quietly
+    burns requests all weekend.
+  */
+  useEffect(() => {
+    let stop = false
+    const tick = async () => {
+      if (stop || document.visibilityState !== 'visible') return
+      await loadChats(true)
+      if (active) await loadThread(active, true)
+    }
+    const id = setInterval(tick, 5000)
+    document.addEventListener('visibilitychange', tick)
+    return () => { stop = true; clearInterval(id); document.removeEventListener('visibilitychange', tick) }
+  }, [active, loadChats, loadThread])
 
   const send = async () => {
     const body = draft.trim()
@@ -326,6 +474,22 @@ function Chats({ onError }) {
                         if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) send()
                       }}
                     />
+                    {!!canned.length && (
+                      <div className="wa-canned">
+                        {canned.map((c) => (
+                          <button
+                            key={c.canned_id} type="button" className="wa-chip"
+                            title={c.body}
+                            /* Inserted, not sent. The person still reads it and
+                               presses Send, so it can be adjusted to what was
+                               actually asked. */
+                            onClick={() => setDraft((d) => (d ? `${d}\n\n${c.body}` : c.body))}
+                          >
+                            {c.title}
+                          </button>
+                        ))}
+                      </div>
+                    )}
                     <div className="wa-composer-actions">
                       <span className="wa-fine">
                         {thread.hoursLeft}h left · ⌘↵ to send
@@ -490,8 +654,11 @@ function Connection({ onError }) {
       ])
       setC(s)
       setWaba(w)
-    } catch (e) { onError(e.message) } finally { setBusy(false) }
-  }, [onError])
+    } catch {
+      // Mount-time check. If it cannot be reached the panel below still works,
+      // and Re-check gives a deliberate retry.
+    } finally { setBusy(false) }
+  }, [])
 
   /* Binds the WhatsApp account to our app. Without it no message or status
      reaches the webhook, however correct the callback URL is -- and there is
@@ -727,6 +894,7 @@ export default function Whatsapp() {
   const [error, setError] = useState(null)
   const [busy, setBusy] = useState(false)
   const [notice, setNotice] = useState(null)
+  const [cannedVersion, setCannedVersion] = useState(0)
   const [pod, setPod] = useState('')
   const [status, setStatus] = useState('active')
 
@@ -832,7 +1000,8 @@ export default function Whatsapp() {
       {error && <div className="wa-error" role="alert">{error}</div>}
 
       <Connection onError={setError} />
-      <Chats onError={setError} />
+      <Chats onError={setError} cannedVersion={cannedVersion} />
+      <CannedManager onError={setError} onChanged={() => setCannedVersion((v) => v + 1)} />
       <Inbox onError={setError} />
       <Settings onError={setError} onNotice={(m) => { setError(null); setNotice(m) }} />
       <SendLog onError={setError} />

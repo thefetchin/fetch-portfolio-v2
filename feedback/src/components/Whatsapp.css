@@ -351,3 +351,36 @@
   color: #92400e;
 }
 .wa-waba-warn p { margin: 0.3rem 0 0.6rem; }
+
+/* ------------------------------------------------------- canned replies -- */
+
+.wa-canned { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-bottom: 0.5rem; }
+
+.wa-chip {
+  border: 1px solid var(--ink-200);
+  background: var(--ink-0);
+  border-radius: 999px;
+  padding: 0.25rem 0.7rem;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--ink-700);
+  cursor: pointer;
+}
+.wa-chip:hover { background: var(--ink-50, #f8fafc); border-color: var(--brand-500); }
+
+.wa-canned-list { list-style: none; margin: 0 0 1rem; padding: 0; }
+.wa-canned-list li {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.7rem 0;
+  border-bottom: 1px solid var(--ink-100);
+}
+.wa-canned-body {
+  margin: 0.2rem 0 0;
+  font-size: 0.8rem;
+  color: var(--ink-500);
+  line-height: 1.5;
+  white-space: pre-wrap;
+}
