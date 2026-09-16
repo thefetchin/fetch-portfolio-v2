@@ -474,6 +474,29 @@ function Chats({ onError, cannedVersion }) {
   }, [onError])
 
   const [canned, setCanned] = useState([])
+  const [attached, setAttached] = useState(null)
+  const [attaching, setAttaching] = useState(false)
+
+  /*
+    An outbound picture has to be somewhere WhatsApp can fetch it from, so it
+    goes through the same public media store the template header uses. There is
+    no way to hand Meta the bytes directly on this path.
+  */
+  const attach = async (file) => {
+    if (!file) return
+    setAttaching(true)
+    try {
+      const r = await fetch('/api/admin/whatsapp/media', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'content-type': file.type, 'x-filename': file.name },
+        body: file,
+      })
+      const d = await r.json()
+      if (!r.ok) throw new Error(d.message || 'Could not attach that picture.')
+      setAttached(d.url)
+    } catch (e) { onError(e.message) } finally { setAttaching(false) }
+  }
 
   const loadCanned = useCallback(async () => {
     try {
@@ -514,18 +537,19 @@ function Chats({ onError, cannedVersion }) {
 
   const send = async () => {
     const body = draft.trim()
-    if (!body || !active) return
+    if ((!body && !attached) || !active) return
     setBusy(true)
     try {
       const r = await fetch(`/api/admin/whatsapp/chats/${active}`, {
         method: 'POST',
         credentials: 'include',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ body }),
+        body: JSON.stringify({ body, mediaUrl: attached || undefined }),
       })
       const d = await r.json()
       if (!r.ok) throw new Error(d.message || 'Could not send.')
       setDraft('')
+      setAttached(null)
       await loadThread(active)
       await loadChats()
     } catch (e) { onError(e.message) } finally { setBusy(false) }
@@ -576,7 +600,33 @@ function Chats({ onError, cannedVersion }) {
                 <div className="wa-bubbles">
                   {thread.messages.map((m) => (
                     <div key={m.id} className={`wa-bubble is-${m.direction} ${m.kind === 'template' ? 'is-tpl' : ''}`}>
-                      <div className="wa-bubble-body">{m.body || `(${m.kind})`}</div>
+                      {/* An inbound picture is served from behind the session;
+                          an outbound one is the public URL we sent Meta. */}
+                      {m.direction === 'in' && m.media_id && (
+                        <a
+                          href={`/api/admin/whatsapp/inbound-media/${encodeURIComponent(m.media_id)}`}
+                          target="_blank" rel="noreferrer"
+                        >
+                          <img
+                            className="wa-bubble-img"
+                            src={`/api/admin/whatsapp/inbound-media/${encodeURIComponent(m.media_id)}`}
+                            alt={m.body || 'Picture from the customer'}
+                          />
+                        </a>
+                      )}
+                      {m.direction === 'out' && m.media_id && (
+                        <a href={m.media_id} target="_blank" rel="noreferrer">
+                          <img className="wa-bubble-img" src={m.media_id} alt={m.body || 'Picture sent'} />
+                        </a>
+                      )}
+                      {m.direction === 'in' && !m.media_id && m.media_error && (
+                        <div className="wa-bubble-noimg">
+                          They sent an attachment we could not keep — {m.media_error}.
+                        </div>
+                      )}
+                      {(m.body || (!m.media_id && !m.media_error)) && (
+                        <div className="wa-bubble-body">{m.body || `(${m.kind})`}</div>
+                      )}
                       <div className="wa-bubble-meta">
                         {fmtDate(m.at)}
                         {m.direction === 'out' && m.status === 'failed' && ' · failed'}
@@ -598,6 +648,12 @@ function Chats({ onError, cannedVersion }) {
                         if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) send()
                       }}
                     />
+                    {attached && (
+                      <div className="wa-attached">
+                        <img src={attached} alt="Attached" />
+                        <button type="button" onClick={() => setAttached(null)}>Remove</button>
+                      </div>
+                    )}
                     {!!canned.length && (
                       <div className="wa-canned">
                         {canned.map((c) => (
@@ -618,9 +674,16 @@ function Chats({ onError, cannedVersion }) {
                       <span className="wa-fine">
                         {thread.hoursLeft}h left · ⌘↵ to send
                       </span>
+                      <label className="abtn wa-file">
+                        {attaching ? 'Attaching…' : 'Attach picture'}
+                        <input
+                          type="file" accept="image/png,image/jpeg"
+                          onChange={(e) => { attach(e.target.files?.[0]); e.target.value = '' }}
+                        />
+                      </label>
                       <button
                         type="button" className="abtn"
-                        onClick={send} disabled={busy || !draft.trim()}
+                        onClick={send} disabled={busy || (!draft.trim() && !attached)}
                       >
                         {busy ? 'Sending…' : 'Send'}
                       </button>

@@ -648,6 +648,31 @@ export async function handleWebhook(request, env, ctx) {
         sentAt
       ).run()
 
+      // Pull any attachment down now. The media URL expires within minutes, so
+      // there is no doing this later when somebody opens the conversation.
+      const att = m[m.type]
+      if (INBOUND_MEDIA_TYPES.includes(m.type) && att?.id) {
+        const got = await fetchInboundMedia(env, att.id)
+        if (got.ok) {
+          await env.DB.prepare(
+            `INSERT INTO whatsapp_inbound_media (media_id, message_id, content_type, bytes, size)
+             VALUES (?1, ?2, ?3, ?4, ?5)
+             ON CONFLICT(media_id) DO NOTHING`
+          ).bind(att.id, m.id, got.contentType, got.bytes, got.bytes.byteLength).run()
+
+          await env.DB.prepare(
+            `UPDATE whatsapp_inbound SET media_id = ?2, media_type = ?3, media_size = ?4
+              WHERE message_id = ?1`
+          ).bind(m.id, att.id, got.contentType, got.bytes.byteLength).run()
+        } else {
+          // The message still belongs in the inbox. Saying why the picture is
+          // missing beats one that silently never appears.
+          await env.DB.prepare(
+            'UPDATE whatsapp_inbound SET media_error = ?2 WHERE message_id = ?1'
+          ).bind(m.id, String(got.reason).slice(0, 200)).run()
+        }
+      }
+
       // A reply of STOP is an opt-out, and honouring it is not optional. It is
       // applied here rather than left for someone to notice in the inbox --
       // the whole point of an opt-out is that it does not wait on a human.
@@ -738,6 +763,54 @@ export const REPLY_WINDOW_HOURS = 24
  * different thing entirely, and why this is a separate function from
  * sendTemplate rather than a flag on it.
  */
+/**
+ * Sends a picture, with an optional caption.
+ *
+ * WhatsApp fetches the file from a public URL, exactly as it does a template
+ * header -- which is why this takes a link rather than bytes, and why the image
+ * has to be one we have already published.
+ */
+export async function sendImage(env, { to, link, caption }) {
+  if (!env.WHATSAPP_TOKEN || !env.WHATSAPP_PHONE_ID) {
+    throw new WhatsappError(
+      'WhatsApp is not configured. Set WHATSAPP_TOKEN and WHATSAPP_PHONE_ID as Worker secrets.',
+      { code: 'whatsapp_not_configured', status: 503 }
+    )
+  }
+  const base = env.WHATSAPP_BASE_URL || 'https://graph.facebook.com'
+
+  let res
+  try {
+    res = await fetch(`${base}/${GRAPH_VERSION}/${env.WHATSAPP_PHONE_ID}/messages`, {
+      method: 'POST',
+      headers: {
+        authorization: `Bearer ${env.WHATSAPP_TOKEN}`,
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({
+        messaging_product: 'whatsapp',
+        recipient_type: 'individual',
+        to,
+        type: 'image',
+        image: { link, ...(caption ? { caption } : {}) },
+      }),
+    })
+  } catch (err) {
+    throw new WhatsappError(`Could not reach WhatsApp: ${err.message}`, { status: 502 })
+  }
+
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok) {
+    const e = data?.error || {}
+    const expired = res.status === 401 || e.code === 190
+    throw new WhatsappError(e.message || `WhatsApp refused the image (HTTP ${res.status}).`, {
+      code: expired ? 'whatsapp_token_expired' : 'whatsapp_rejected',
+      status: expired ? 503 : 502,
+    })
+  }
+  return { ok: true, messageId: data?.messages?.[0]?.id || null }
+}
+
 export async function sendText(env, { to, body }) {
   if (!env.WHATSAPP_TOKEN || !env.WHATSAPP_PHONE_ID) {
     throw new WhatsappError(
@@ -830,12 +903,14 @@ export async function handleChatThread(env, json, waNumber) {
        FROM whatsapp_inbound WHERE wa_number = ?1
      UNION ALL
      SELECT 'out' AS direction, reply_id AS id, body, created_at AS at,
-            status, error, delivery_status, 'text' AS kind, sent_by AS who
+            status, error, delivery_status, 'text' AS kind, sent_by AS who,
+            media_url AS media_id, NULL AS media_type, NULL AS media_error
        FROM whatsapp_replies WHERE wa_number = ?1
      UNION ALL
      SELECT 'out' AS direction, send_id AS id,
             'Template: ' || template AS body, created_at AS at,
-            status, error, delivery_status, 'template' AS kind, NULL AS who
+            status, error, delivery_status, 'template' AS kind, NULL AS who,
+            NULL AS media_id, NULL AS media_type, NULL AS media_error
        FROM whatsapp_sends WHERE wa_number = ?1
      ORDER BY at ASC
      LIMIT 300`
@@ -857,7 +932,15 @@ export async function handleChatReply(request, env, json, actor, waNumber) {
   try { body = await request.json() } catch { body = {} }
 
   const text = cleanText(body.body, 1000)
-  if (!text) return json({ error: 'validation', message: 'Write something to send.' }, 422)
+  // A picture may travel with a caption or on its own, so the requirement is
+  // "one of the two", not "text".
+  const mediaUrl = cleanText(body.mediaUrl, 600)
+  if (mediaUrl && !/^https:\/\//i.test(mediaUrl)) {
+    return json({ error: 'validation', message: 'The picture needs an https address.' }, 422)
+  }
+  if (!text && !mediaUrl) {
+    return json({ error: 'validation', message: 'Write something, or attach a picture.' }, 422)
+  }
 
   const hours = await hoursSinceLastInbound(env, waNumber)
   if (hours == null) {
@@ -878,19 +961,24 @@ export async function handleChatReply(request, env, json, actor, waNumber) {
 
   const replyId = crypto.randomUUID()
   try {
-    const r = await sendText(env, { to: waNumber, body: text })
+    const r = mediaUrl
+      ? await sendImage(env, { to: waNumber, link: mediaUrl, caption: text || '' })
+      : await sendText(env, { to: waNumber, body: text })
     await env.DB.prepare(
-      `INSERT INTO whatsapp_replies (reply_id, wa_number, body, wa_message_id, status, sent_by)
-       VALUES (?1, ?2, ?3, ?4, 'sent', ?5)`
-    ).bind(replyId, waNumber, text, r.messageId, actor || null).run()
+      `INSERT INTO whatsapp_replies
+         (reply_id, wa_number, body, media_url, wa_message_id, status, sent_by)
+       VALUES (?1, ?2, ?3, ?4, ?5, 'sent', ?6)`
+    ).bind(replyId, waNumber, text || '', mediaUrl, r.messageId, actor || null).run()
     return json({ ok: true, replyId, messageId: r.messageId })
   } catch (err) {
     // A failed reply is still written down. Otherwise the thread shows nothing
     // and it looks as though nobody ever tried.
     await env.DB.prepare(
-      `INSERT INTO whatsapp_replies (reply_id, wa_number, body, status, error, sent_by)
-       VALUES (?1, ?2, ?3, 'failed', ?4, ?5)`
-    ).bind(replyId, waNumber, text, String(err.message || err).slice(0, 300), actor || null).run()
+      `INSERT INTO whatsapp_replies
+         (reply_id, wa_number, body, media_url, status, error, sent_by)
+       VALUES (?1, ?2, ?3, ?4, 'failed', ?5, ?6)`
+    ).bind(replyId, waNumber, text || '', mediaUrl,
+           String(err.message || err).slice(0, 300), actor || null).run()
     return json({
       error: err.code || 'whatsapp_failed',
       message: err.message || 'Could not send that reply.',
@@ -1244,5 +1332,89 @@ export async function handleMediaList(env, json) {
       url: `https://${host}/media/whatsapp/${m.media_id}.${m.content_type === 'image/png' ? 'png' : 'jpg'}`,
     })),
     maxBytes: MAX_MEDIA_BYTES,
+  })
+}
+
+/* ------------------------------------------------------- inbound pictures -- */
+
+/** Same SQLite ceiling as the header images. WhatsApp re-compresses photos
+ *  before delivering them, so most land well under this -- but not all, and
+ *  the ones that do not are recorded rather than silently dropped. */
+export const MAX_INBOUND_MEDIA_BYTES = 800 * 1024
+
+const INBOUND_MEDIA_TYPES = ['image', 'sticker', 'document', 'audio', 'video']
+
+/**
+ * Pulls an attachment down from Meta.
+ *
+ * Two steps, and both need the token: the media id resolves to a URL, and that
+ * URL expires within minutes. So this runs while the webhook is handling the
+ * message. There is no fetching it later when somebody opens the conversation.
+ *
+ * Returns { ok, bytes, contentType } or { ok: false, reason } -- a reason
+ * rather than a throw, because a picture we could not keep must still leave the
+ * message itself in the inbox.
+ */
+export async function fetchInboundMedia(env, mediaId) {
+  if (!env.WHATSAPP_TOKEN) return { ok: false, reason: 'WhatsApp is not configured.' }
+  const base = env.WHATSAPP_BASE_URL || 'https://graph.facebook.com'
+  const auth = { authorization: `Bearer ${env.WHATSAPP_TOKEN}` }
+
+  let meta
+  try {
+    const r = await fetch(`${base}/${GRAPH_VERSION}/${mediaId}`, { headers: auth })
+    meta = await r.json()
+    if (!r.ok) return { ok: false, reason: meta?.error?.message || `lookup failed (${r.status})` }
+  } catch (err) {
+    return { ok: false, reason: `lookup failed: ${err.message}` }
+  }
+
+  const size = Number(meta?.file_size || 0)
+  if (size && size > MAX_INBOUND_MEDIA_BYTES) {
+    return {
+      ok: false,
+      reason: `${Math.round(size / 1024)}KB, over the ${Math.round(MAX_INBOUND_MEDIA_BYTES / 1024)}KB we can store`,
+    }
+  }
+  if (!meta?.url) return { ok: false, reason: 'no download url' }
+
+  try {
+    // The download URL needs the token too -- it is not a public link.
+    const r = await fetch(meta.url, { headers: auth })
+    if (!r.ok) return { ok: false, reason: `download failed (${r.status})` }
+    const buf = await r.arrayBuffer()
+    // file_size can be absent, so the real length is checked as well.
+    if (buf.byteLength > MAX_INBOUND_MEDIA_BYTES) {
+      return {
+        ok: false,
+        reason: `${Math.round(buf.byteLength / 1024)}KB, over the `
+          + `${Math.round(MAX_INBOUND_MEDIA_BYTES / 1024)}KB we can store`,
+      }
+    }
+    return { ok: true, bytes: buf, contentType: meta.mime_type || 'application/octet-stream' }
+  } catch (err) {
+    return { ok: false, reason: `download failed: ${err.message}` }
+  }
+}
+
+/** Serves one customer attachment. ADMIN ONLY -- these are photographs someone
+ *  sent to a business, not something we publish. */
+export async function handleInboundMediaGet(env, mediaId) {
+  const row = await env.DB.prepare(
+    'SELECT content_type, bytes FROM whatsapp_inbound_media WHERE media_id = ?1'
+  ).bind(mediaId).first()
+  if (!row) return new Response('not found', { status: 404 })
+
+  // D1 returns a BLOB as a plain array of byte values, not a buffer.
+  const bytes = row.bytes instanceof ArrayBuffer
+    ? new Uint8Array(row.bytes)
+    : new Uint8Array(Array.isArray(row.bytes) ? row.bytes : [])
+
+  return new Response(bytes, {
+    headers: {
+      'content-type': row.content_type,
+      // Private: it is a customer's photograph behind a session.
+      'cache-control': 'private, max-age=3600',
+    },
   })
 }

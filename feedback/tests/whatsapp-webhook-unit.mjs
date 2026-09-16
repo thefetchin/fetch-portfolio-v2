@@ -195,5 +195,75 @@ const stopword = await send(msgBody(
 ))
 eq('but "stopped working" is a complaint, not an opt-out', stopword.runs.length, 1)
 
+/* --------------------------------------------------- pictures they send -- */
+section('attachments from customers')
+
+/* Meta does not send the picture, only an id -- and the URL that id resolves to
+   expires within minutes and needs the token. So the bytes are pulled down
+   while the webhook is running; there is no fetching it later. */
+
+const imgBody = (id) => ({
+  entry: [{ changes: [{ value: { messages: [{
+    id: 'wamid.IMG', from: '919876543210', type: 'image',
+    image: { id, caption: 'jammed slot' },
+  }] } }] }],
+})
+
+const withFetch = async (impl, payload) => {
+  const real = globalThis.fetch
+  globalThis.fetch = impl
+  try {
+    const raw = JSON.stringify(payload)
+    const e2 = env()
+    e2.WHATSAPP_TOKEN = 'tok'
+    await post(e2, raw, await sign(raw))
+    return e2.DB.runs
+  } finally { globalThis.fetch = real }
+}
+
+// The happy path: look the id up, then download from the URL it gives back.
+const okRuns = await withFetch(async (url) => {
+  if (String(url).endsWith('/MEDIA1')) {
+    return new Response(JSON.stringify({
+      url: 'https://lookaside.example/blob', mime_type: 'image/jpeg', file_size: 1234,
+    }), { headers: { 'content-type': 'application/json' } })
+  }
+  return new Response(new Uint8Array(1234))
+}, imgBody('MEDIA1'))
+
+eq('the picture is stored and linked to the message',
+  [okRuns.some((r) => /whatsapp_inbound_media/.test(r.sql)),
+   okRuns.some((r) => /SET media_id/.test(r.sql))],
+  [true, true])
+eq('the caption is kept as the body',
+  okRuns[0].args[4], 'jammed slot')
+
+// Over the row limit: the MESSAGE must still land, with a reason. Dropping the
+// whole thing would lose a customer who was trying to reach us.
+const bigRuns = await withFetch(async (url) => {
+  if (String(url).endsWith('/BIG')) {
+    return new Response(JSON.stringify({
+      url: 'https://lookaside.example/blob', mime_type: 'image/jpeg', file_size: 5 * 1024 * 1024,
+    }), { headers: { 'content-type': 'application/json' } })
+  }
+  return new Response(new Uint8Array(10))
+}, imgBody('BIG'))
+
+eq('an oversized picture still stores the message',
+  bigRuns.some((r) => /INSERT INTO whatsapp_inbound\b/.test(r.sql)), true)
+eq('and records why it is not viewable, rather than failing silently',
+  bigRuns.some((r) => /SET media_error/.test(r.sql)), true)
+eq('and stores no blob', bigRuns.some((r) => /whatsapp_inbound_media/.test(r.sql)), false)
+
+// A download that fails must behave the same way.
+const failRuns = await withFetch(
+  async () => new Response('nope', { status: 500 }),
+  imgBody('BROKEN')
+)
+eq('a failed download leaves the message with a reason',
+  [failRuns.some((r) => /INSERT INTO whatsapp_inbound\b/.test(r.sql)),
+   failRuns.some((r) => /SET media_error/.test(r.sql))],
+  [true, true])
+
 console.log(`\n══ ${pass} passed, ${fail} failed ══`)
 process.exit(fail ? 1 : 0)

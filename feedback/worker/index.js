@@ -17,7 +17,7 @@ import {
   handleWabaStatus, handleWabaSubscribe,
   handleCannedList, handleCannedCreate, handleCannedDelete,
   handleTemplateInspect,
-  handleMediaUpload, handleMediaGet, handleMediaList,
+  handleMediaUpload, handleMediaGet, handleMediaList, handleInboundMediaGet,
 } from './whatsapp-send.js'
 import {
   SUBMISSION_STATUSES, DEBIT_NOTE_STATUSES, WHATSAPP_STATUSES, WA_CONSENT_TEXT,
@@ -876,6 +876,12 @@ export default {
           return await handleQrUpdate(request, env, json, qrMatch[1])
         }
 
+        // Customer photographs. Behind the admin gate, unlike the template
+        // header images, which Meta has to be able to fetch.
+        const inMediaMatch = pathname.match(/^\/api\/admin\/whatsapp\/inbound-media\/([\w.=-]+)$/)
+        if (inMediaMatch && request.method === 'GET') {
+          return await handleInboundMediaGet(env, inMediaMatch[1])
+        }
         if (pathname === '/api/admin/whatsapp/media' && request.method === 'GET') {
           return await handleMediaList(env, json)
         }
