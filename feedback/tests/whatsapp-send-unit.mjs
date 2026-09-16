@@ -11,6 +11,7 @@
 
 import {
   fillVariables, sendTemplate, WhatsappError, VARIABLE_FIELDS, MAX_SENDS_PER_CALL,
+  buildComponents,
 } from '../worker/whatsapp-send.js'
 
 let pass = 0
@@ -120,6 +121,49 @@ eq('it is a WhatsappError, so callers can branch on it',
    stay under it with room for the D1 writes around it. */
 eq('the per-call cap leaves headroom under the 50-subrequest limit',
   MAX_SENDS_PER_CALL <= 45, true)
+
+/* ------------------------------------------------------- media headers -- */
+section('templates with an image header')
+
+/* Adding an image to an approved template adds a HEADER component, and every
+   send must then carry a parameter for it. Sending only the body afterwards
+   fails with "(#132012) Parameter format does not match format in the created
+   template" -- an error that names no component and reads as though the body
+   were at fault. */
+
+const podX = { label: 'Fetch Pod 003', location: 'SJEC Admin Block', city: 'Mangalore' }
+
+eq('no header configured sends only the body',
+  buildComponents({ headerFormat: 'NONE', variables: ['pod_location'] }, podX),
+  [{ type: 'body', parameters: [{ type: 'text', text: 'SJEC Admin Block' }] }])
+
+eq('an image header is sent as a link parameter, header first',
+  buildComponents(
+    { headerFormat: 'IMAGE', headerMediaUrl: 'https://thefetch.in/og-image.png',
+      variables: ['pod_location'] }, podX),
+  [
+    { type: 'header', parameters: [{ type: 'image', image: { link: 'https://thefetch.in/og-image.png' } }] },
+    { type: 'body', parameters: [{ type: 'text', text: 'SJEC Admin Block' }] },
+  ])
+
+eq('video and document headers use their own key',
+  [
+    buildComponents({ headerFormat: 'VIDEO', headerMediaUrl: 'https://x/v.mp4', variables: [] }, podX)[0],
+    buildComponents({ headerFormat: 'DOCUMENT', headerMediaUrl: 'https://x/d.pdf', variables: [] }, podX)[0],
+  ],
+  [
+    { type: 'header', parameters: [{ type: 'video', video: { link: 'https://x/v.mp4' } }] },
+    { type: 'header', parameters: [{ type: 'document', document: { link: 'https://x/d.pdf' } }] },
+  ])
+
+// A header format with no URL would produce a parameter with nothing in it,
+// which Meta rejects for the whole message.
+eq('a header format with no url is left out rather than sent empty',
+  buildComponents({ headerFormat: 'IMAGE', headerMediaUrl: '', variables: [] }, podX), [])
+
+eq('a header with no body variables still sends the header',
+  buildComponents({ headerFormat: 'IMAGE', headerMediaUrl: 'https://x/i.png', variables: [] }, podX).length,
+  1)
 
 console.log(`\n══ ${pass} passed, ${fail} failed ══`)
 process.exit(fail ? 1 : 0)

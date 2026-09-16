@@ -61,6 +61,7 @@ const SUGGESTED_BODY =
  */
 function Settings({ onError, onNotice }) {
   const [s, setS] = useState(null)
+  const [tpl, setTpl] = useState(null)
   const [busy, setBusy] = useState(false)
 
   const load = useCallback(async () => {
@@ -69,6 +70,10 @@ function Settings({ onError, onNotice }) {
       const d = await r.json()
       if (!r.ok) throw new Error(d.message || 'Could not load the settings.')
       setS(d.settings)
+      // What Meta says the template expects, so a mismatch is visible here
+      // rather than arriving later as a 132012 that names nothing.
+      const t = await fetch('/api/admin/whatsapp/template', { credentials: 'include' })
+      setTpl(await t.json())
     } catch (e) { onError(e.message) }
   }, [onError])
 
@@ -158,6 +163,55 @@ function Settings({ onError, onNotice }) {
           </label>
         ))}
       </fieldset>
+
+      {tpl?.found && (
+        <div className={`wa-tplcheck ${tpl.matches ? 'is-ok' : 'is-bad'}`}>
+          <strong>
+            {tpl.matches
+              ? 'This matches the approved template.'
+              : 'This does not match the approved template.'}
+          </strong>
+          <p className="wa-fine">
+            Meta says <code>{tpl.name}</code> ({tpl.language}, {tpl.category}) expects{' '}
+            {tpl.wants.headerFormat === 'NONE' ? 'no header' : `a ${tpl.wants.headerFormat} header`}
+            {' and '}{tpl.wants.bodyVariables} body variable{tpl.wants.bodyVariables === 1 ? '' : 's'}.
+          </p>
+          {tpl.problems?.map((p) => <p key={p} className="wa-fine">{p}</p>)}
+        </div>
+      )}
+
+      <label className="wa-field">
+        <span>Header</span>
+        <select
+          value={s.headerFormat || 'NONE'}
+          onChange={(e) => setS({ ...s, headerFormat: e.target.value })}
+        >
+          <option value="NONE">No header</option>
+          <option value="IMAGE">Image</option>
+          <option value="VIDEO">Video</option>
+          <option value="DOCUMENT">Document</option>
+        </select>
+        <em>
+          Adding an image to the template at Meta adds a header, and every send
+          then has to supply the file. Leave as &ldquo;No header&rdquo; unless the
+          template has one.
+        </em>
+      </label>
+
+      {s.headerFormat && s.headerFormat !== 'NONE' && (
+        <label className="wa-field">
+          <span>Header file URL</span>
+          <input
+            value={s.headerMediaUrl || ''}
+            placeholder="https://thefetch.in/og-image.png"
+            onChange={(e) => setS({ ...s, headerMediaUrl: e.target.value })}
+          />
+          <em>
+            WhatsApp fetches this itself when the message is sent, so it must be
+            a public https URL — not behind a login.
+          </em>
+        </label>
+      )}
 
       <label className="wa-field">
         <span>Approved wording, for reference</span>

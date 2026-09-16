@@ -384,3 +384,19 @@
   line-height: 1.5;
   white-space: pre-wrap;
 }
+
+.wa-tplcheck {
+  margin: 0.9rem 0;
+  padding: 0.7rem 0.85rem;
+  border-radius: var(--radius-md);
+  border: 1px solid;
+}
+.wa-tplcheck.is-ok  { background: rgba(22,163,74,0.08); border-color: rgba(22,163,74,0.3); color: #15803d; }
+.wa-tplcheck.is-bad { background: rgba(245,158,11,0.09); border-color: rgba(245,158,11,0.35); color: #92400e; }
+.wa-tplcheck p { margin: 0.3rem 0 0; }
+.wa-field select {
+  padding: 0.6rem 0.75rem;
+  border: 1.5px solid var(--ink-200);
+  border-radius: var(--radius-md);
+  font-size: 15px; background: var(--ink-0); color: var(--ink-900);
+}

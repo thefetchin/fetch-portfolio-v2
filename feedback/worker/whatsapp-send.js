@@ -120,12 +120,37 @@ export async function sendTemplate(env, { to, template, language, components }) 
   return { ok: true, messageId: data?.messages?.[0]?.id || null }
 }
 
+/**
+ * The components a send must carry, in the order Meta expects.
+ *
+ * A template with an image gains a HEADER component, and every send then has
+ * to supply a parameter for it. Omitting it fails with
+ * "(#132012) Parameter format does not match format in the created template",
+ * which names no component and reads as though the body were wrong.
+ */
+export function buildComponents(settings, pod) {
+  const components = []
+
+  if (settings.headerFormat && settings.headerFormat !== 'NONE' && settings.headerMediaUrl) {
+    const kind = settings.headerFormat.toLowerCase()   // image | video | document
+    components.push({
+      type: 'header',
+      parameters: [{ type: kind, [kind]: { link: settings.headerMediaUrl } }],
+    })
+  }
+
+  const params = fillVariables(settings.variables, pod)
+  if (params.length) components.push({ type: 'body', parameters: params })
+
+  return components
+}
+
 /* ------------------------------------------------------------- settings -- */
 
 export async function getSettings(env) {
   const row = await env.DB.prepare(
     `SELECT enabled, template_name, language_code, variables, body_preview,
-            updated_at, updated_by
+            header_format, header_media_url, updated_at, updated_by
        FROM whatsapp_settings WHERE id = 1`
   ).first()
   let variables = []
@@ -136,6 +161,8 @@ export async function getSettings(env) {
     languageCode: row?.language_code || 'en_US',
     variables: Array.isArray(variables) ? variables.filter((v) => VARIABLE_FIELDS.includes(v)) : [],
     bodyPreview: row?.body_preview || '',
+    headerFormat: row?.header_format || 'NONE',
+    headerMediaUrl: row?.header_media_url || '',
     updatedAt: row?.updated_at || null,
     updatedBy: row?.updated_by || null,
     configured: !!(env.WHATSAPP_TOKEN && env.WHATSAPP_PHONE_ID),
@@ -178,13 +205,36 @@ export async function handleSettingsPut(request, env, json, actor) {
     }, 422)
   }
 
+  const headerFormat = ['NONE', 'IMAGE', 'VIDEO', 'DOCUMENT'].includes(body.headerFormat)
+    ? body.headerFormat : 'NONE'
+  const headerMediaUrl = cleanText(body.headerMediaUrl, 600) || null
+
+  // Meta fetches this URL itself when the message is sent, so it has to be
+  // publicly reachable https -- not behind our admin auth, not localhost.
+  if (headerFormat !== 'NONE') {
+    if (!headerMediaUrl) {
+      return json({
+        error: 'validation',
+        message: 'A media header needs a public https URL for the file.',
+      }, 422)
+    }
+    if (!/^https:\/\//i.test(headerMediaUrl)) {
+      return json({
+        error: 'validation',
+        message: 'The header file must be an https URL that WhatsApp can fetch.',
+      }, 422)
+    }
+  }
+
   await env.DB.prepare(
     `UPDATE whatsapp_settings
         SET enabled = ?1, template_name = ?2, language_code = ?3,
             variables = ?4, body_preview = ?5,
+            header_format = ?7, header_media_url = ?8,
             updated_at = datetime('now'), updated_by = ?6
       WHERE id = 1`
-  ).bind(enabled, templateName, languageCode, JSON.stringify(variables), bodyPreview, actor || null).run()
+  ).bind(enabled, templateName, languageCode, JSON.stringify(variables), bodyPreview,
+         actor || null, headerFormat, headerFormat === 'NONE' ? null : headerMediaUrl).run()
 
   return json({ ok: true, settings: await getSettings(env) })
 }
@@ -249,9 +299,7 @@ export async function handlePodNotify(request, env, json, actor, podId) {
   }
 
   const batchId = crypto.randomUUID()
-  const components = settings.variables.length
-    ? [{ type: 'body', parameters: fillVariables(settings.variables, pod) }]
-    : []
+  const components = buildComponents(settings, pod)
 
   const queue = people.slice(0, MAX_SENDS_PER_CALL)
   const deferred = people.length - queue.length
@@ -996,4 +1044,106 @@ export async function handleCannedDelete(env, json, cannedId) {
   ).bind(cannedId).run()
   if (!res.meta?.changes) return json({ error: 'not_found', message: 'No such reply.' }, 404)
   return json({ ok: true })
+}
+
+/* ------------------------------------------------- what the template wants -- */
+
+/**
+ * Reads the configured template back from Meta.
+ *
+ * Without this the panel lets you declare variables blind and only finds out
+ * at send time, as a 132012 that names nothing. Now the shape it actually
+ * expects -- header format, how many body variables, buttons -- can be shown
+ * next to what we are configured to send.
+ */
+export async function handleTemplateInspect(env, json) {
+  const id = env.WHATSAPP_WABA_ID
+  if (!id || !env.WHATSAPP_TOKEN) {
+    return json({ configured: false, message: 'WHATSAPP_WABA_ID or WHATSAPP_TOKEN is not set.' })
+  }
+
+  const settings = await getSettings(env)
+  if (!settings.templateName) {
+    return json({ configured: false, message: 'No template is configured yet.' })
+  }
+
+  const base = env.WHATSAPP_BASE_URL || 'https://graph.facebook.com'
+  const url = `${base}/${GRAPH_VERSION}/${id}/message_templates`
+    + `?name=${encodeURIComponent(settings.templateName)}&limit=10`
+
+  let res
+  try {
+    res = await fetch(url, { headers: { authorization: `Bearer ${env.WHATSAPP_TOKEN}` } })
+  } catch (err) {
+    return json({ configured: true, ok: false, message: `Could not reach WhatsApp: ${err.message}` })
+  }
+
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok) {
+    return json({
+      configured: true, ok: false,
+      message: data?.error?.message || `WhatsApp refused the request (HTTP ${res.status}).`,
+    })
+  }
+
+  // Meta returns every language variant under one name; ours is the one whose
+  // language matches what we send.
+  const all = data?.data || []
+  const tpl = all.find((t) => t.language === settings.languageCode) || all[0] || null
+  if (!tpl) {
+    return json({
+      configured: true, ok: true, found: false,
+      message: `No template named "${settings.templateName}" in this account.`,
+    })
+  }
+
+  const comps = tpl.components || []
+  const header = comps.find((c) => c.type === 'HEADER') || null
+  const bodyComp = comps.find((c) => c.type === 'BODY') || null
+  const buttons = comps.find((c) => c.type === 'BUTTONS') || null
+
+  // Body placeholders are {{1}}, {{2}}... so the highest number is how many
+  // parameters a send must carry.
+  const nums = [...String(bodyComp?.text || '').matchAll(/\{\{\s*(\d+)\s*\}\}/g)]
+    .map((m) => Number(m[1]))
+  const bodyVariables = nums.length ? Math.max(...nums) : 0
+
+  const wants = {
+    headerFormat: header ? (header.format || 'TEXT') : 'NONE',
+    bodyVariables,
+    buttons: (buttons?.buttons || []).map((b) => b.type),
+  }
+
+  const has = {
+    headerFormat: settings.headerFormat || 'NONE',
+    bodyVariables: settings.variables.length,
+  }
+
+  const problems = []
+  if (wants.headerFormat !== has.headerFormat) {
+    problems.push(
+      wants.headerFormat === 'NONE'
+        ? 'The template has no header, but a header is configured here.'
+        : `The template has an ${wants.headerFormat} header. Set it here and give it a public https URL.`
+    )
+  }
+  if (wants.bodyVariables !== has.bodyVariables) {
+    problems.push(
+      `The template uses ${wants.bodyVariables} body variable(s); `
+      + `${has.bodyVariables} are configured here.`
+    )
+  }
+
+  return json({
+    configured: true, ok: true, found: true,
+    name: tpl.name,
+    language: tpl.language,
+    category: tpl.category,
+    status: tpl.status,
+    bodyText: bodyComp?.text || null,
+    wants,
+    has,
+    problems,
+    matches: problems.length === 0,
+  })
 }

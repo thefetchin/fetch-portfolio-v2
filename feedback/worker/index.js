@@ -13,6 +13,7 @@ import {
   handleChatList, handleChatThread, handleChatReply,
   handleWabaStatus, handleWabaSubscribe,
   handleCannedList, handleCannedCreate, handleCannedDelete,
+  handleTemplateInspect,
 } from './whatsapp-send.js'
 import {
   SUBMISSION_STATUSES, DEBIT_NOTE_STATUSES, WHATSAPP_STATUSES, WA_CONSENT_TEXT,
@@ -837,6 +838,9 @@ export default {
         const cannedMatch = pathname.match(/^\/api\/admin\/whatsapp\/canned\/([\w-]+)$/)
         if (cannedMatch && request.method === 'DELETE') {
           return await handleCannedDelete(env, json, cannedMatch[1])
+        }
+        if (pathname === '/api/admin/whatsapp/template' && request.method === 'GET') {
+          return await handleTemplateInspect(env, json)
         }
         if (pathname === '/api/admin/whatsapp/waba' && request.method === 'GET') {
           return await handleWabaStatus(env, json)

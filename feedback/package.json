@@ -33,6 +33,7 @@
     "db:whatsapp-inbound": "wrangler d1 execute fetch-feedback --remote --file=./migrations/011_whatsapp_inbound.sql",
     "db:whatsapp-replies": "wrangler d1 execute fetch-feedback --remote --file=./migrations/012_whatsapp_replies.sql",
     "db:whatsapp-canned": "wrangler d1 execute fetch-feedback --remote --file=./migrations/013_whatsapp_canned.sql",
+    "db:whatsapp-header": "wrangler d1 execute fetch-feedback --remote --file=./migrations/014_whatsapp_header.sql",
     "db:whatsapp-send": "wrangler d1 execute fetch-feedback --remote --file=./migrations/009_whatsapp_send.sql",
     "db:whatsapp-send:local": "wrangler d1 execute fetch-feedback --local --file=./migrations/009_whatsapp_send.sql",
     "test:vnetra": "node tests/vnetra-unit.mjs",
