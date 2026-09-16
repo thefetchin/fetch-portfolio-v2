@@ -350,6 +350,7 @@ export async function handleSendLog(request, env, json) {
   const rows = await env.DB.prepare(
     `SELECT s.send_id, s.batch_id, s.pod_id, s.wa_number, s.status,
             s.wa_message_id, s.error, s.template, s.created_at,
+            s.delivery_status, s.delivered_at, s.read_at, s.delivery_error,
             p.label AS pod_label
        FROM whatsapp_sends s
        LEFT JOIN pods p ON p.pod_id = s.pod_id
@@ -365,9 +366,180 @@ export async function handleSendLog(request, env, json) {
        SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END)   AS failed,
        COUNT(DISTINCT wa_number)                            AS people,
        COUNT(DISTINCT batch_id)                             AS batches,
-       MAX(CASE WHEN status = 'sent' THEN created_at END)   AS last_sent_at
+       MAX(CASE WHEN status = 'sent' THEN created_at END)   AS last_sent_at,
+       SUM(CASE WHEN delivery_status IN ('delivered','read') THEN 1 ELSE 0 END) AS delivered,
+       SUM(CASE WHEN delivery_status = 'failed' THEN 1 ELSE 0 END)              AS undelivered,
+       -- Accepted by Meta but never heard about again. With no webhook this is
+       -- everything, which is the honest answer rather than implying delivery.
+       SUM(CASE WHEN status = 'sent' AND delivery_status IS NULL THEN 1 ELSE 0 END) AS unknown
      FROM whatsapp_sends`
   ).first()
 
   return json({ sends: rows.results || [], stats })
+}
+
+/* ------------------------------------------------------ connection check -- */
+
+/**
+ * Asks Meta what number we are actually sending from.
+ *
+ * Worth having because the commonest reason a message is accepted and never
+ * arrives is that the sender is a TEST number, which can only reach a handful
+ * of recipients added to an allow-list in the Meta dashboard. Nothing in the
+ * send response hints at that; this does.
+ */
+export async function handleConnectionCheck(env, json) {
+  if (!env.WHATSAPP_TOKEN || !env.WHATSAPP_PHONE_ID) {
+    return json({
+      configured: false,
+      message: 'Set WHATSAPP_TOKEN and WHATSAPP_PHONE_ID as Worker secrets.',
+    })
+  }
+
+  const base = env.WHATSAPP_BASE_URL || 'https://graph.facebook.com'
+  const fields = 'display_phone_number,verified_name,quality_rating,platform_type,code_verification_status,name_status,throughput'
+
+  let res
+  try {
+    res = await fetch(`${base}/${GRAPH_VERSION}/${env.WHATSAPP_PHONE_ID}?fields=${fields}`, {
+      headers: { authorization: `Bearer ${env.WHATSAPP_TOKEN}` },
+    })
+  } catch (err) {
+    return json({ configured: true, ok: false, message: `Could not reach WhatsApp: ${err.message}` })
+  }
+
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok) {
+    const e = data?.error || {}
+    return json({
+      configured: true,
+      ok: false,
+      tokenExpired: res.status === 401 || e.code === 190,
+      message: e.message || `WhatsApp refused the request (HTTP ${res.status}).`,
+    })
+  }
+
+  return json({
+    configured: true,
+    ok: true,
+    phoneNumber: data.display_phone_number || null,
+    verifiedName: data.verified_name || null,
+    qualityRating: data.quality_rating || null,
+    // 'CLOUD_API' on a real number. Meta's own free test numbers report
+    // differently and can only message an allow-list, which is the usual
+    // reason an accepted message never arrives.
+    platformType: data.platform_type || null,
+    nameStatus: data.name_status || null,
+    throughput: data.throughput?.level || null,
+  })
+}
+
+/* --------------------------------------------------------------- webhook -- */
+
+/** Meta signs every webhook body with the app secret. Without checking it,
+ *  anyone who learns the URL can post fake delivery statuses. */
+async function signatureValid(env, raw, header) {
+  if (!env.WHATSAPP_APP_SECRET) return null      // not configured -> cannot verify
+  if (!header || !header.startsWith('sha256=')) return false
+
+  const key = await crypto.subtle.importKey(
+    'raw',
+    new TextEncoder().encode(env.WHATSAPP_APP_SECRET),
+    { name: 'HMAC', hash: 'SHA-256' },
+    false,
+    ['sign']
+  )
+  const sig = await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(raw))
+  const expected = [...new Uint8Array(sig)].map((b) => b.toString(16).padStart(2, '0')).join('')
+  const got = header.slice('sha256='.length)
+
+  if (expected.length !== got.length) return false
+  let diff = 0
+  for (let i = 0; i < expected.length; i++) diff |= expected.charCodeAt(i) ^ got.charCodeAt(i)
+  return diff === 0
+}
+
+/** Meta's one-time subscription handshake. */
+export function handleWebhookVerify(request, env) {
+  const url = new URL(request.url)
+  const mode = url.searchParams.get('hub.mode')
+  const token = url.searchParams.get('hub.verify_token')
+  const challenge = url.searchParams.get('hub.challenge')
+
+  if (mode === 'subscribe' && env.WHATSAPP_VERIFY_TOKEN && token === env.WHATSAPP_VERIFY_TOKEN) {
+    return new Response(challenge || '', { status: 200, headers: { 'content-type': 'text/plain' } })
+  }
+  return new Response('forbidden', { status: 403 })
+}
+
+/**
+ * Delivery statuses from Meta.
+ *
+ * Always answers 200, even when it cannot use the payload. Meta retries and
+ * eventually disables a webhook that returns errors, and a status we failed to
+ * parse is not worth losing the subscription over -- so parsing problems are
+ * swallowed here rather than surfaced as failures to Meta.
+ */
+export async function handleWebhook(request, env, ctx) {
+  const raw = await request.text()
+
+  const valid = await signatureValid(env, raw, request.headers.get('x-hub-signature-256'))
+  if (valid === false) return new Response('bad signature', { status: 403 })
+  // valid === null means WHATSAPP_APP_SECRET is unset. Accepting unsigned
+  // callbacks would let anyone mark messages delivered, so it is refused --
+  // loudly in the log, because the symptom otherwise is "statuses never
+  // update" with nothing to explain it.
+  if (valid === null) {
+    console.warn('WhatsApp webhook rejected: WHATSAPP_APP_SECRET is not set')
+    return new Response('not configured', { status: 503 })
+  }
+
+  let body
+  try { body = JSON.parse(raw) } catch { return new Response('ok') }
+
+  const statuses = []
+  for (const entry of body?.entry || []) {
+    for (const change of entry?.changes || []) {
+      for (const st of change?.value?.statuses || []) statuses.push(st)
+    }
+  }
+  if (!statuses.length) return new Response('ok')
+
+  const work = (async () => {
+    for (const st of statuses) {
+      const id = st.id
+      const status = ['sent', 'delivered', 'read', 'failed'].includes(st.status) ? st.status : null
+      if (!id || !status) continue
+
+      const err = Array.isArray(st.errors) && st.errors.length
+        ? [st.errors[0].code ? `(#${st.errors[0].code})` : '',
+           st.errors[0].title || st.errors[0].message || '',
+           st.errors[0].error_data?.details || ''].filter(Boolean).join(' ').slice(0, 300)
+        : null
+
+      // Statuses can arrive out of order, so a 'sent' must never overwrite a
+      // 'read' that already landed. The CASE keeps the furthest state reached.
+      await env.DB.prepare(
+        `UPDATE whatsapp_sends
+            SET delivery_status = CASE
+                  WHEN delivery_status = 'read' THEN 'read'
+                  WHEN delivery_status = 'delivered' AND ?2 = 'sent' THEN 'delivered'
+                  ELSE ?2 END,
+                delivered_at = CASE WHEN ?2 = 'delivered' AND delivered_at IS NULL
+                                    THEN datetime('now') ELSE delivered_at END,
+                read_at      = CASE WHEN ?2 = 'read' AND read_at IS NULL
+                                    THEN datetime('now') ELSE read_at END,
+                delivery_error = COALESCE(?3, delivery_error),
+                delivery_updated_at = datetime('now')
+          WHERE wa_message_id = ?1`
+      ).bind(id, status, err).run()
+    }
+  })()
+
+  // Answer Meta immediately; finish the writes after. A slow webhook is a
+  // webhook Meta starts retrying.
+  if (ctx?.waitUntil) ctx.waitUntil(work.catch((e) => console.error('webhook write failed', e)))
+  else await work
+
+  return new Response('ok')
 }

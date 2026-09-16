@@ -226,3 +226,18 @@
   max-width: 24ch;
 }
 .wa-settings .wa-stats, .wa-settings .wa-filters { margin: 0.75rem 0; }
+
+.wa-conn {
+  background: var(--ink-0);
+  border: 1px solid var(--ink-100);
+  border-left: 3px solid #16a34a;
+  border-radius: var(--radius-lg);
+  padding: 0.85rem 1.1rem;
+}
+.wa-conn.is-bad { border-left-color: #dc2626; }
+.wa-conn-head {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 1rem; flex-wrap: wrap;
+}
+.wa-conn p { margin: 0.35rem 0 0; }
+.wa-stat.is-unknown span { color: #b45309; }

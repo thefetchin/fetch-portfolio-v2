@@ -201,6 +201,95 @@ function Settings({ onError, onNotice }) {
 }
 
 /**
+ * What number we are actually sending from.
+ *
+ * The commonest reason a message is accepted and never arrives is that the
+ * sender is one of Meta's TEST numbers, which can only reach a short
+ * allow-list configured in their dashboard. Nothing in the send response hints
+ * at it, so this asks Meta directly.
+ */
+function Connection({ onError }) {
+  const [c, setC] = useState(null)
+  const [busy, setBusy] = useState(false)
+
+  const check = useCallback(async () => {
+    setBusy(true)
+    try {
+      const r = await fetch('/api/admin/whatsapp/status', { credentials: 'include' })
+      const d = await r.json()
+      if (!r.ok) throw new Error(d.message || 'Could not check the connection.')
+      setC(d)
+    } catch (e) { onError(e.message) } finally { setBusy(false) }
+  }, [onError])
+
+  useEffect(() => { check() }, [check])
+
+  if (!c) return null
+
+  return (
+    <div className={`wa-conn ${c.ok ? '' : 'is-bad'}`}>
+      <div className="wa-conn-head">
+        <strong>
+          {!c.configured ? 'WhatsApp not connected'
+            : c.ok ? `Sending from ${c.phoneNumber || 'an unknown number'}`
+            : 'WhatsApp connection problem'}
+        </strong>
+        <button type="button" className="abtn" onClick={check} disabled={busy}>
+          {busy ? 'Checking…' : 'Re-check'}
+        </button>
+      </div>
+
+      {!c.ok && <p className="wa-fine">{c.message}</p>}
+      {c.tokenExpired && (
+        <p className="wa-fine">
+          The access token has expired. A short-lived token lasts 24 hours — use a
+          System User token for something that runs unattended.
+        </p>
+      )}
+
+      {c.ok && (
+        <p className="wa-fine">
+          {c.verifiedName ? `${c.verifiedName} · ` : ''}
+          {c.qualityRating ? `quality ${c.qualityRating} · ` : ''}
+          {c.throughput ? `throughput ${c.throughput}` : ''}
+        </p>
+      )}
+
+      {c.ok && c.nameStatus && c.nameStatus !== 'APPROVED' && (
+        <p className="wa-fine">
+          Display name status is <strong>{c.nameStatus}</strong>, not APPROVED.
+        </p>
+      )}
+    </div>
+  )
+}
+
+/**
+ * What actually happened to a message.
+ *
+ * "Accepted" is the honest word for a message Meta took but never reported on
+ * again -- which is every message until a delivery webhook is connected.
+ * Calling that "Sent" implies an arrival nobody has confirmed.
+ */
+function deliveryLabel(r) {
+  if (r.status !== 'sent') return r.status === 'failed' ? 'Rejected' : 'Skipped'
+  switch (r.delivery_status) {
+    case 'read': return 'Read'
+    case 'delivered': return 'Delivered'
+    case 'failed': return 'Not delivered'
+    case 'sent': return 'Sent to handset'
+    default: return 'Accepted'
+  }
+}
+
+function deliveryTone(r) {
+  if (r.status !== 'sent') return 'invalid'
+  if (r.delivery_status === 'failed') return 'invalid'
+  if (r.delivery_status === 'delivered' || r.delivery_status === 'read') return 'active'
+  return 'unsubscribed'   // accepted but unconfirmed: grey, not green
+}
+
+/**
  * The send log.
  *
  * Failures show Meta's own wording, not ours. That text is the whole
@@ -236,10 +325,12 @@ function SendLog({ onError }) {
 
       {st && (
         <div className="wa-stats">
-          <div className="wa-stat"><span>{st.sent ?? 0}</span><label>Delivered to Meta</label></div>
-          <div className="wa-stat"><span>{st.failed ?? 0}</span><label>Failed</label></div>
-          <div className="wa-stat"><span>{st.people ?? 0}</span><label>People reached</label></div>
-          <div className="wa-stat"><span>{st.batches ?? 0}</span><label>Sends</label></div>
+          <div className="wa-stat"><span>{st.delivered ?? 0}</span><label>Delivered</label></div>
+          <div className={`wa-stat ${st.unknown ? 'is-unknown' : ''}`}>
+            <span>{st.unknown ?? 0}</span><label>Accepted, not confirmed</label>
+          </div>
+          <div className="wa-stat"><span>{(st.failed ?? 0) + (st.undelivered ?? 0)}</span><label>Failed</label></div>
+          <div className="wa-stat"><span>{st.people ?? 0}</span><label>People</label></div>
         </div>
       )}
 
@@ -278,15 +369,21 @@ function SendLog({ onError }) {
                   </td>
                   <td className="wa-nowrap">{fmtNumber(r.wa_number)}</td>
                   <td>
-                    <span className={`wa-badge wa-badge--${r.status === 'sent' ? 'active' : 'invalid'}`}>
-                      {r.status === 'sent' ? 'Sent' : r.status === 'failed' ? 'Failed' : 'Skipped'}
+                    {/*
+                      Two different facts, deliberately not merged. The send
+                      status is whether Meta ACCEPTED the message; the delivery
+                      status is what happened to it afterwards, and only a
+                      webhook can tell us that. Showing acceptance alone as
+                      "Sent" is what made a message that never arrived look
+                      like a success.
+                    */}
+                    <span className={`wa-badge wa-badge--${deliveryTone(r)}`}>
+                      {deliveryLabel(r)}
                     </span>
                   </td>
                   <td>
-                    {/* Meta's own words. Deliberately not summarised -- the
-                        error code is what makes it searchable. */}
-                    {r.error
-                      ? <span className="wa-err">{r.error}</span>
+                    {r.error || r.delivery_error
+                      ? <span className="wa-err">{r.error || r.delivery_error}</span>
                       : <span className="wa-fine wa-msgid">{r.wa_message_id || '—'}</span>}
                   </td>
                 </tr>
@@ -297,8 +394,12 @@ function SendLog({ onError }) {
       )}
 
       <p className="wa-fine">
-        &ldquo;Sent&rdquo; means WhatsApp accepted the message, not that it has been
-        read. Delivery to the handset is not reported back to us.
+        {st?.unknown
+          ? <><strong>Accepted</strong> means WhatsApp took the message but has not
+            told us what became of it. Connect the delivery webhook and these
+            become Delivered, Read or Not delivered.</>
+          : <>Delivery is reported by Meta&apos;s webhook. &ldquo;Read&rdquo; only
+            appears if the recipient has read receipts on.</>}
       </p>
     </details>
   )
@@ -413,6 +514,7 @@ export default function Whatsapp() {
 
       {error && <div className="wa-error" role="alert">{error}</div>}
 
+      <Connection onError={setError} />
       <Settings onError={setError} onNotice={(m) => { setError(null); setNotice(m) }} />
       <SendLog onError={setError} />
       {notice && <div className="wa-notice" role="status">{notice}</div>}

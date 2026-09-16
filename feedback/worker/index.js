@@ -8,6 +8,7 @@ import { beginIdempotent, maybePrune } from './idempotency.js'
 import { routeInventory } from './inv-routes.js'
 import {
   handleSettingsGet, handleSettingsPut, handlePodNotify, handleSendLog,
+  handleConnectionCheck, handleWebhookVerify, handleWebhook,
 } from './whatsapp-send.js'
 import {
   SUBMISSION_STATUSES, DEBIT_NOTE_STATUSES, WHATSAPP_STATUSES, WA_CONSENT_TEXT,
@@ -727,6 +728,22 @@ export default {
     const isFormHost = adminHost ? hostname !== adminHost : true
 
     try {
+      // ---- the WhatsApp delivery webhook, on EITHER host
+      //
+      // Public by necessity: Meta calls it with no session of ours, and it
+      // authenticates itself by HMAC signature against WHATSAPP_APP_SECRET --
+      // which is why an unset secret refuses the callback rather than
+      // trusting it.
+      //
+      // Answered before the host split on purpose. Whichever hostname is
+      // pasted into Meta's dashboard should work; a 404 there shows up as
+      // "statuses never arrive" with nothing pointing at the cause.
+      if (pathname === '/api/whatsapp/webhook') {
+        if (request.method === 'GET') return handleWebhookVerify(request, env)
+        if (request.method === 'POST') return await handleWebhook(request, env, ctx)
+        return json({ error: 'not_found' }, 404)
+      }
+
       // ---- admin API — only on the admin host, behind email+password auth
       if (pathname.startsWith('/api/admin/')) {
         if (!isAdminHost) return json({ error: 'not_found' }, 404)
@@ -790,6 +807,9 @@ export default {
           return await handleDebitNoteStatus(request, env, dnMatch[1])
         }
 
+        if (pathname === '/api/admin/whatsapp/status' && request.method === 'GET') {
+          return await handleConnectionCheck(env, json)
+        }
         if (pathname === '/api/admin/whatsapp/sends' && request.method === 'GET') {
           return await handleSendLog(request, env, json)
         }
