@@ -9,6 +9,7 @@ import { routeInventory } from './inv-routes.js'
 import {
   handleSettingsGet, handleSettingsPut, handlePodNotify, handleSendLog,
   handleConnectionCheck, handleWebhookVerify, handleWebhook,
+  handleInbox, handleInboxUpdate,
 } from './whatsapp-send.js'
 import {
   SUBMISSION_STATUSES, DEBIT_NOTE_STATUSES, WHATSAPP_STATUSES, WA_CONSENT_TEXT,
@@ -807,6 +808,13 @@ export default {
           return await handleDebitNoteStatus(request, env, dnMatch[1])
         }
 
+        if (pathname === '/api/admin/whatsapp/inbox' && request.method === 'GET') {
+          return await handleInbox(request, env, json)
+        }
+        const inboxMatch = pathname.match(/^\/api\/admin\/whatsapp\/inbox\/([\w.=-]+)$/)
+        if (inboxMatch && request.method === 'PATCH') {
+          return await handleInboxUpdate(request, env, json, auth.email, inboxMatch[1])
+        }
         if (pathname === '/api/admin/whatsapp/status' && request.method === 'GET') {
           return await handleConnectionCheck(env, json)
         }

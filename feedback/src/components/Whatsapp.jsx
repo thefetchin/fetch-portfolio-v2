@@ -201,6 +201,116 @@ function Settings({ onError, onNotice }) {
 }
 
 /**
+ * Messages customers have sent us.
+ *
+ * The 24-hour flag is the operational fact: inside it you may reply with
+ * ordinary text, outside it only an approved template will send. Somebody
+ * typing a friendly reply on hour 25 and watching it fail is exactly the
+ * confusion this is here to prevent.
+ */
+function Inbox({ onError }) {
+  const [data, setData] = useState(null)
+  const [openOnly, setOpenOnly] = useState(true)
+  const [busy, setBusy] = useState(false)
+
+  const load = useCallback(async () => {
+    setBusy(true)
+    try {
+      const r = await fetch(`/api/admin/whatsapp/inbox?${openOnly ? 'open=1' : ''}`,
+        { credentials: 'include' })
+      const d = await r.json()
+      if (!r.ok) throw new Error(d.message || 'Could not load the inbox.')
+      setData(d)
+    } catch (e) { onError(e.message) } finally { setBusy(false) }
+  }, [openOnly, onError])
+
+  useEffect(() => { load() }, [load])
+
+  const mark = async (id, handled) => {
+    try {
+      await fetch(`/api/admin/whatsapp/inbox/${encodeURIComponent(id)}`, {
+        method: 'PATCH',
+        credentials: 'include',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ handled }),
+      })
+      load()
+    } catch (e) { onError(e.message) }
+  }
+
+  const items = data?.inbound || []
+  const st = data?.stats
+
+  return (
+    <details className="wa-settings" open={!!st?.open}>
+      <summary>Inbox{st?.open ? ` — ${st.open} waiting` : ''}</summary>
+
+      <div className="wa-filters">
+        <label className="wa-check">
+          <input type="checkbox" checked={openOnly} onChange={(e) => setOpenOnly(e.target.checked)} />
+          <span>Only what needs a reply</span>
+        </label>
+        <button type="button" className="abtn" onClick={load} disabled={busy}>
+          {busy ? 'Loading…' : 'Refresh'}
+        </button>
+      </div>
+
+      {!items.length && !busy && (
+        <p className="wa-fine">
+          Nothing yet. Customer messages appear here once the webhook is
+          connected and subscribed to <code>messages</code>.
+        </p>
+      )}
+
+      {!!items.length && (
+        <div className="wa-table-wrap">
+          <table className="wa-table">
+            <thead>
+              <tr><th>When</th><th>From</th><th>Message</th><th>Reply window</th><th /></tr>
+            </thead>
+            <tbody>
+              {items.map((m) => (
+                <tr key={m.message_id} className={m.handled_at ? 'is-off' : ''}>
+                  <td className="wa-nowrap">{fmtDate(m.received_at)}</td>
+                  <td>
+                    <a href={`https://wa.me/${m.wa_number}`} target="_blank" rel="noreferrer">
+                      {fmtNumber(m.wa_number)}
+                    </a>
+                    {m.profile_name && <div className="wa-fine">{m.profile_name}</div>}
+                  </td>
+                  <td>
+                    {m.body || <span className="wa-fine">({m.type}, no text)</span>}
+                  </td>
+                  <td>
+                    <span className={`wa-badge wa-badge--${m.windowOpen ? 'active' : 'unsubscribed'}`}>
+                      {m.windowOpen ? 'Open — free text' : 'Closed — template only'}
+                    </span>
+                  </td>
+                  <td className="wa-nowrap">
+                    <button
+                      type="button" className="abtn abtn--quiet"
+                      onClick={() => mark(m.message_id, !m.handled_at)}
+                    >
+                      {m.handled_at ? 'Reopen' : 'Done'}
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      <p className="wa-fine">
+        Replies are sent from WhatsApp itself, not from here. A reply within 24
+        hours of a customer&apos;s message can be ordinary text; after that only an
+        approved template will send.
+      </p>
+    </details>
+  )
+}
+
+/**
  * What number we are actually sending from.
  *
  * The commonest reason a message is accepted and never arrives is that the
@@ -515,6 +625,7 @@ export default function Whatsapp() {
       {error && <div className="wa-error" role="alert">{error}</div>}
 
       <Connection onError={setError} />
+      <Inbox onError={setError} />
       <Settings onError={setError} onNotice={(m) => { setError(null); setNotice(m) }} />
       <SendLog onError={setError} />
       {notice && <div className="wa-notice" role="status">{notice}</div>}

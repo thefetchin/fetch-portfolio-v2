@@ -498,12 +498,19 @@ export async function handleWebhook(request, env, ctx) {
   try { body = JSON.parse(raw) } catch { return new Response('ok') }
 
   const statuses = []
+  const inbound = []
   for (const entry of body?.entry || []) {
     for (const change of entry?.changes || []) {
-      for (const st of change?.value?.statuses || []) statuses.push(st)
+      const v = change?.value || {}
+      for (const st of v.statuses || []) statuses.push(st)
+      // Messages FROM customers. Contacts carry the sender's profile name and
+      // are keyed by wa_id, so they are matched up rather than assumed to be
+      // in the same order.
+      const names = new Map((v.contacts || []).map((c) => [c.wa_id, c?.profile?.name || null]))
+      for (const m of v.messages || []) inbound.push({ m, name: names.get(m.from) || null })
     }
   }
-  if (!statuses.length) return new Response('ok')
+  if (!statuses.length && !inbound.length) return new Response('ok')
 
   const work = (async () => {
     for (const st of statuses) {
@@ -534,6 +541,50 @@ export async function handleWebhook(request, env, ctx) {
           WHERE wa_message_id = ?1`
       ).bind(id, status, err).run()
     }
+
+    for (const { m, name } of inbound) {
+      if (!m?.id || !m?.from) continue
+
+      // The readable text, wherever this message type keeps it. Anything with
+      // no text at all still gets a row -- an image or a location is a
+      // customer trying to reach us, and dropping it loses the contact.
+      const text = m.text?.body
+        ?? m.button?.text
+        ?? m.interactive?.button_reply?.title
+        ?? m.interactive?.list_reply?.title
+        ?? m[m.type]?.caption
+        ?? null
+
+      // Meta sends a unix timestamp in seconds.
+      const sentAt = /^\d+$/.test(String(m.timestamp || ''))
+        ? new Date(Number(m.timestamp) * 1000).toISOString().replace('T', ' ').slice(0, 19)
+        : null
+
+      // ON CONFLICT DO NOTHING because Meta retries: the same message can
+      // arrive more than once and must not become two rows in the inbox.
+      await env.DB.prepare(
+        `INSERT INTO whatsapp_inbound
+           (message_id, wa_number, profile_name, type, body, raw_json, sent_at)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
+         ON CONFLICT(message_id) DO NOTHING`
+      ).bind(
+        m.id, m.from, name, m.type || 'unknown',
+        text ? String(text).slice(0, 2000) : null,
+        JSON.stringify(m).slice(0, 4000),
+        sentAt
+      ).run()
+
+      // A reply of STOP is an opt-out, and honouring it is not optional. It is
+      // applied here rather than left for someone to notice in the inbox --
+      // the whole point of an opt-out is that it does not wait on a human.
+      if (text && /^\s*(stop|unsubscribe)\b/i.test(String(text))) {
+        await env.DB.prepare(
+          `UPDATE whatsapp_optins
+              SET status = 'unsubscribed', unsubscribed_at = datetime('now')
+            WHERE wa_number = ?1 AND status = 'active'`
+        ).bind(m.from).run()
+      }
+    }
   })()
 
   // Answer Meta immediately; finish the writes after. A slow webhook is a
@@ -542,4 +593,60 @@ export async function handleWebhook(request, env, ctx) {
   else await work
 
   return new Response('ok')
+}
+
+/* ----------------------------------------------------------- the inbox -- */
+
+/**
+ * Messages customers have sent us.
+ *
+ * `windowOpen` is the fact that actually governs what can be said back: a
+ * reply within 24 hours of their last message may be free text, and after that
+ * only an approved template will send.
+ */
+export async function handleInbox(request, env, json) {
+  const url = new URL(request.url)
+  const limit = Math.min(Number.parseInt(url.searchParams.get('limit') || '100', 10) || 100, 500)
+  const openOnly = url.searchParams.get('open') === '1'
+
+  const rows = await env.DB.prepare(
+    `SELECT i.message_id, i.wa_number, i.profile_name, i.type, i.body,
+            i.sent_at, i.received_at, i.handled_at, i.handled_by,
+            (julianday('now') - julianday(i.received_at)) * 24 AS hours_ago
+       FROM whatsapp_inbound i
+       ${openOnly ? 'WHERE i.handled_at IS NULL' : ''}
+      ORDER BY i.received_at DESC
+      LIMIT ?1`
+  ).bind(limit).all()
+
+  const items = (rows.results || []).map((r) => ({
+    ...r,
+    windowOpen: r.hours_ago != null && r.hours_ago < 24,
+  }))
+
+  const stats = await env.DB.prepare(
+    `SELECT COUNT(*) AS total,
+            SUM(CASE WHEN handled_at IS NULL THEN 1 ELSE 0 END) AS open,
+            COUNT(DISTINCT wa_number) AS people
+       FROM whatsapp_inbound`
+  ).first()
+
+  return json({ inbound: items, stats })
+}
+
+/** Marks one inbound message dealt with. */
+export async function handleInboxUpdate(request, env, json, actor, messageId) {
+  let body
+  try { body = await request.json() } catch { body = {} }
+  const handled = body.handled !== false
+
+  const res = await env.DB.prepare(
+    `UPDATE whatsapp_inbound
+        SET handled_at = CASE WHEN ?2 = 1 THEN COALESCE(handled_at, datetime('now')) ELSE NULL END,
+            handled_by = CASE WHEN ?2 = 1 THEN ?3 ELSE NULL END
+      WHERE message_id = ?1`
+  ).bind(messageId, handled ? 1 : 0, actor || null).run()
+
+  if (!res.meta?.changes) return json({ error: 'not_found', message: 'No such message.' }, 404)
+  return json({ ok: true, handled })
 }

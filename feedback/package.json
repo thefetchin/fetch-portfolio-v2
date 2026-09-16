@@ -30,6 +30,7 @@
     "test:whatsapp-send": "node tests/whatsapp-send-unit.mjs",
     "test:whatsapp-webhook": "node tests/whatsapp-webhook-unit.mjs",
     "db:whatsapp-delivery": "wrangler d1 execute fetch-feedback --remote --file=./migrations/010_whatsapp_delivery.sql",
+    "db:whatsapp-inbound": "wrangler d1 execute fetch-feedback --remote --file=./migrations/011_whatsapp_inbound.sql",
     "db:whatsapp-send": "wrangler d1 execute fetch-feedback --remote --file=./migrations/009_whatsapp_send.sql",
     "db:whatsapp-send:local": "wrangler d1 execute fetch-feedback --local --file=./migrations/009_whatsapp_send.sql",
     "test:vnetra": "node tests/vnetra-unit.mjs",
