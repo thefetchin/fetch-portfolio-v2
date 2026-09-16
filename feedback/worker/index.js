@@ -16,7 +16,7 @@ import {
   handleChatList, handleChatThread, handleChatReply,
   handleWabaStatus, handleWabaSubscribe,
   handleCannedList, handleCannedCreate, handleCannedDelete,
-  handleTemplateInspect,
+  handleTemplateInspect, handleRegisterNumber,
   handleMediaUpload, handleMediaGet, handleMediaList, handleInboundMediaGet,
 } from './whatsapp-send.js'
 import {
@@ -890,6 +890,9 @@ export default {
         }
         if (pathname === '/api/admin/whatsapp/template' && request.method === 'GET') {
           return await handleTemplateInspect(env, json)
+        }
+        if (pathname === '/api/admin/whatsapp/register' && request.method === 'POST') {
+          return await handleRegisterNumber(request, env, json)
         }
         if (pathname === '/api/admin/whatsapp/waba' && request.method === 'GET') {
           return await handleWabaStatus(env, json)

@@ -155,6 +155,20 @@ function Settings({ onError, onNotice }) {
       </p>
 
       <label className="wa-field">
+        <span>Send from — phone number ID</span>
+        <input
+          value={s.phoneNumberId || ''}
+          placeholder="1222880680919561"
+          onChange={(e) => setS({ ...s, phoneNumberId: e.target.value })}
+        />
+        <em>
+          The long ID from WhatsApp Manager → Phone numbers, not the phone number
+          itself. Change it here when the business changes number.
+          {s.phoneNumberIdSource === 'secret' && ' Currently coming from the WHATSAPP_PHONE_ID secret.'}
+        </em>
+      </label>
+
+      <label className="wa-field">
         <span>Template name</span>
         <input
           value={s.templateName}
@@ -831,6 +845,25 @@ function Connection({ onError }) {
   const [busy, setBusy] = useState(false)
 
   const [waba, setWaba] = useState(null)
+  const [pin, setPin] = useState('')
+
+  /* The PIN goes straight to Meta and is never stored — not here, not in the
+     Worker, not in D1. It is cleared from the form either way. */
+  const register = async () => {
+    setBusy(true)
+    try {
+      const r = await fetch('/api/admin/whatsapp/register', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ pin }),
+      })
+      const d = await r.json()
+      setPin('')
+      if (!r.ok) throw new Error(d.message || 'Could not register the number.')
+      await check()
+    } catch (e) { onError(e.message) } finally { setBusy(false) }
+  }
 
   const check = useCallback(async () => {
     setBusy(true)
@@ -893,6 +926,36 @@ function Connection({ onError }) {
           {c.qualityRating ? `quality ${c.qualityRating} · ` : ''}
           {c.throughput ? `throughput ${c.throughput}` : ''}
         </p>
+      )}
+
+      {/*
+        A number added in WhatsApp Manager is verified but not registered:
+        PENDING, and unable to send or receive. To a customer it looks as
+        though the number is not on WhatsApp at all, so this is worth shouting
+        about rather than leaving as a status word.
+      */}
+      {c.ok && c.status && c.status !== 'CONNECTED' && (
+        <div className="wa-waba-warn">
+          <strong>This number is not registered yet ({c.status}).</strong>
+          <p className="wa-fine">
+            It cannot send or receive until it is. Registering sets its two-step
+            PIN — choose six digits and keep them, because they are needed again
+            if the number is ever re-registered. We do not store the PIN.
+          </p>
+          <div className="wa-register">
+            <input
+              inputMode="numeric" pattern="[0-9]*" maxLength={6}
+              placeholder="6-digit PIN"
+              value={pin} onChange={(e) => setPin(e.target.value.replace(/\D/g, '').slice(0, 6))}
+            />
+            <button
+              type="button" className="abtn"
+              onClick={register} disabled={busy || pin.length !== 6}
+            >
+              {busy ? 'Registering…' : 'Register this number'}
+            </button>
+          </div>
+        </div>
       )}
 
       {c.ok && c.nameStatus && c.nameStatus !== 'APPROVED' && (

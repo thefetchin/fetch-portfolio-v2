@@ -24,6 +24,20 @@ const GRAPH_VERSION = 'v25.0'
  *  headroom for the D1 calls around them. */
 export const MAX_SENDS_PER_CALL = 40
 
+/**
+ * Which number we send from.
+ *
+ * The setting wins over the WHATSAPP_PHONE_ID secret, so changing number is a
+ * field in the panel rather than a secret rotation and a redeploy. The token
+ * is the credential; this is an address.
+ */
+function phoneId(env, override) {
+  return override || env.WHATSAPP_PHONE_ID || null
+}
+
+const NOT_CONFIGURED = 'WhatsApp is not connected. Set WHATSAPP_TOKEN as a Worker secret, '
+  + 'and the phone number ID in Message settings.'
+
 export class WhatsappError extends Error {
   constructor(message, { code = 'whatsapp_failed', status = 502 } = {}) {
     super(message)
@@ -60,12 +74,10 @@ export function fillVariables(names, pod) {
  * which is far more useful than anything we could invent -- it says whether
  * the template is unapproved, the number unreachable, or the token expired.
  */
-export async function sendTemplate(env, { to, template, language, components }) {
-  if (!env.WHATSAPP_TOKEN || !env.WHATSAPP_PHONE_ID) {
-    throw new WhatsappError(
-      'WhatsApp is not configured. Set WHATSAPP_TOKEN and WHATSAPP_PHONE_ID as Worker secrets.',
-      { code: 'whatsapp_not_configured', status: 503 }
-    )
+export async function sendTemplate(env, { to, template, language, components, phoneNumberId }) {
+  const from = phoneId(env, phoneNumberId)
+  if (!env.WHATSAPP_TOKEN || !from) {
+    throw new WhatsappError(NOT_CONFIGURED, { code: 'whatsapp_not_configured', status: 503 })
   }
 
   const body = {
@@ -86,7 +98,7 @@ export async function sendTemplate(env, { to, template, language, components }) 
     // Meta's own host.
     const base = env.WHATSAPP_BASE_URL || 'https://graph.facebook.com'
     res = await fetch(
-      `${base}/${GRAPH_VERSION}/${env.WHATSAPP_PHONE_ID}/messages`,
+      `${base}/${GRAPH_VERSION}/${from}/messages`,
       {
         method: 'POST',
         headers: {
@@ -150,7 +162,7 @@ export function buildComponents(settings, pod) {
 export async function getSettings(env) {
   const row = await env.DB.prepare(
     `SELECT enabled, template_name, language_code, variables, body_preview,
-            header_format, header_media_url, updated_at, updated_by
+            header_format, header_media_url, phone_number_id, updated_at, updated_by
        FROM whatsapp_settings WHERE id = 1`
   ).first()
   let variables = []
@@ -163,9 +175,13 @@ export async function getSettings(env) {
     bodyPreview: row?.body_preview || '',
     headerFormat: row?.header_format || 'NONE',
     headerMediaUrl: row?.header_media_url || '',
+    // The setting wins; the secret is the fallback for anything set up before
+    // this field existed.
+    phoneNumberId: row?.phone_number_id || env.WHATSAPP_PHONE_ID || '',
+    phoneNumberIdSource: row?.phone_number_id ? 'settings' : (env.WHATSAPP_PHONE_ID ? 'secret' : 'unset'),
     updatedAt: row?.updated_at || null,
     updatedBy: row?.updated_by || null,
-    configured: !!(env.WHATSAPP_TOKEN && env.WHATSAPP_PHONE_ID),
+    configured: !!(env.WHATSAPP_TOKEN && (row?.phone_number_id || env.WHATSAPP_PHONE_ID)),
   }
 }
 
@@ -209,6 +225,17 @@ export async function handleSettingsPut(request, env, json, actor) {
     ? body.headerFormat : 'NONE'
   const headerMediaUrl = cleanText(body.headerMediaUrl, 600) || null
 
+  // Digits only: it is an id, and a pasted "+91 82770 34104" here would fail
+  // every send with a 404 from Meta that names nothing useful.
+  const phoneNumberId = cleanText(body.phoneNumberId, 40)
+  if (phoneNumberId && !/^\d{5,25}$/.test(phoneNumberId)) {
+    return json({
+      error: 'validation',
+      message: 'The phone number ID is the long number from WhatsApp Manager, digits only — '
+        + 'not the phone number itself.',
+    }, 422)
+  }
+
   // Meta fetches this URL itself when the message is sent, so it has to be
   // publicly reachable https -- not behind our admin auth, not localhost.
   if (headerFormat !== 'NONE') {
@@ -230,11 +257,12 @@ export async function handleSettingsPut(request, env, json, actor) {
     `UPDATE whatsapp_settings
         SET enabled = ?1, template_name = ?2, language_code = ?3,
             variables = ?4, body_preview = ?5,
-            header_format = ?7, header_media_url = ?8,
+            header_format = ?7, header_media_url = ?8, phone_number_id = ?9,
             updated_at = datetime('now'), updated_by = ?6
       WHERE id = 1`
   ).bind(enabled, templateName, languageCode, JSON.stringify(variables), bodyPreview,
-         actor || null, headerFormat, headerFormat === 'NONE' ? null : headerMediaUrl).run()
+         actor || null, headerFormat, headerFormat === 'NONE' ? null : headerMediaUrl,
+         phoneNumberId || null).run()
 
   return json({ ok: true, settings: await getSettings(env) })
 }
@@ -258,7 +286,7 @@ export async function handlePodNotify(request, env, json, actor, podId) {
   if (!settings.configured) {
     return json({
       error: 'whatsapp_not_configured',
-      message: 'WhatsApp is not connected. Set WHATSAPP_TOKEN and WHATSAPP_PHONE_ID as Worker secrets.',
+      message: NOT_CONFIGURED,
     }, 503)
   }
   if (!settings.enabled || !settings.templateName) {
@@ -316,6 +344,7 @@ export async function handlePodNotify(request, env, json, actor, podId) {
         template: settings.templateName,
         language: settings.languageCode,
         components,
+        phoneNumberId: settings.phoneNumberId,
       })
       sent++
       rows.push([crypto.randomUUID(), batchId, podId, person.wa_number, person.optin_id,
@@ -437,11 +466,10 @@ export async function handleSendLog(request, env, json) {
  * send response hints at that; this does.
  */
 export async function handleConnectionCheck(env, json) {
-  if (!env.WHATSAPP_TOKEN || !env.WHATSAPP_PHONE_ID) {
-    return json({
-      configured: false,
-      message: 'Set WHATSAPP_TOKEN and WHATSAPP_PHONE_ID as Worker secrets.',
-    })
+  const settings = await getSettings(env)
+  const from = phoneId(env, settings.phoneNumberId)
+  if (!env.WHATSAPP_TOKEN || !from) {
+    return json({ configured: false, message: NOT_CONFIGURED })
   }
 
   const base = env.WHATSAPP_BASE_URL || 'https://graph.facebook.com'
@@ -457,7 +485,7 @@ export async function handleConnectionCheck(env, json) {
 
   let res
   try {
-    res = await fetch(`${base}/${GRAPH_VERSION}/${env.WHATSAPP_PHONE_ID}?fields=${fields}`, {
+    res = await fetch(`${base}/${GRAPH_VERSION}/${from}?fields=${fields}`, {
       headers: { authorization: `Bearer ${env.WHATSAPP_TOKEN}` },
     })
   } catch (err) {
@@ -478,6 +506,8 @@ export async function handleConnectionCheck(env, json) {
   return json({
     configured: true,
     ok: true,
+    phoneNumberId: from,
+    phoneNumberIdSource: settings.phoneNumberIdSource,
     phoneNumber: data.display_phone_number || null,
     verifiedName: data.verified_name || null,
     // CONNECTED is the only value that means the number can send and receive.
@@ -770,18 +800,16 @@ export const REPLY_WINDOW_HOURS = 24
  * header -- which is why this takes a link rather than bytes, and why the image
  * has to be one we have already published.
  */
-export async function sendImage(env, { to, link, caption }) {
-  if (!env.WHATSAPP_TOKEN || !env.WHATSAPP_PHONE_ID) {
-    throw new WhatsappError(
-      'WhatsApp is not configured. Set WHATSAPP_TOKEN and WHATSAPP_PHONE_ID as Worker secrets.',
-      { code: 'whatsapp_not_configured', status: 503 }
-    )
+export async function sendImage(env, { to, link, caption, phoneNumberId }) {
+  const from = phoneId(env, phoneNumberId)
+  if (!env.WHATSAPP_TOKEN || !from) {
+    throw new WhatsappError(NOT_CONFIGURED, { code: 'whatsapp_not_configured', status: 503 })
   }
   const base = env.WHATSAPP_BASE_URL || 'https://graph.facebook.com'
 
   let res
   try {
-    res = await fetch(`${base}/${GRAPH_VERSION}/${env.WHATSAPP_PHONE_ID}/messages`, {
+    res = await fetch(`${base}/${GRAPH_VERSION}/${from}/messages`, {
       method: 'POST',
       headers: {
         authorization: `Bearer ${env.WHATSAPP_TOKEN}`,
@@ -811,18 +839,16 @@ export async function sendImage(env, { to, link, caption }) {
   return { ok: true, messageId: data?.messages?.[0]?.id || null }
 }
 
-export async function sendText(env, { to, body }) {
-  if (!env.WHATSAPP_TOKEN || !env.WHATSAPP_PHONE_ID) {
-    throw new WhatsappError(
-      'WhatsApp is not configured. Set WHATSAPP_TOKEN and WHATSAPP_PHONE_ID as Worker secrets.',
-      { code: 'whatsapp_not_configured', status: 503 }
-    )
+export async function sendText(env, { to, body, phoneNumberId }) {
+  const from = phoneId(env, phoneNumberId)
+  if (!env.WHATSAPP_TOKEN || !from) {
+    throw new WhatsappError(NOT_CONFIGURED, { code: 'whatsapp_not_configured', status: 503 })
   }
 
   const base = env.WHATSAPP_BASE_URL || 'https://graph.facebook.com'
   let res
   try {
-    res = await fetch(`${base}/${GRAPH_VERSION}/${env.WHATSAPP_PHONE_ID}/messages`, {
+    res = await fetch(`${base}/${GRAPH_VERSION}/${from}/messages`, {
       method: 'POST',
       headers: {
         authorization: `Bearer ${env.WHATSAPP_TOKEN}`,
@@ -961,9 +987,15 @@ export async function handleChatReply(request, env, json, actor, waNumber) {
 
   const replyId = crypto.randomUUID()
   try {
+    const settings = await getSettings(env)
     const r = mediaUrl
-      ? await sendImage(env, { to: waNumber, link: mediaUrl, caption: text || '' })
-      : await sendText(env, { to: waNumber, body: text })
+      ? await sendImage(env, {
+          to: waNumber, link: mediaUrl, caption: text || '',
+          phoneNumberId: settings.phoneNumberId,
+        })
+      : await sendText(env, {
+          to: waNumber, body: text, phoneNumberId: settings.phoneNumberId,
+        })
     await env.DB.prepare(
       `INSERT INTO whatsapp_replies
          (reply_id, wa_number, body, media_url, wa_message_id, status, sent_by)
@@ -1416,5 +1448,75 @@ export async function handleInboundMediaGet(env, mediaId) {
       // Private: it is a customer's photograph behind a session.
       'cache-control': 'private, max-age=3600',
     },
+  })
+}
+
+/* ----------------------------------------------------------- registering -- */
+
+/**
+ * Registers the configured number with the Cloud API.
+ *
+ * A number added in WhatsApp Manager is verified but not yet registered:
+ * status PENDING, platform_type NOT_APPLICABLE. Until this call it cannot send
+ * or receive, and messages to it look to a customer as though the number is not
+ * on WhatsApp at all.
+ *
+ * The PIN is the number's two-step verification PIN, chosen by whoever runs the
+ * account. It is used for this one request and NEVER stored -- not in D1, not
+ * in a log, not in the response. It will be needed again if the number is ever
+ * re-registered or moved, so it is theirs to keep, not ours.
+ */
+export async function handleRegisterNumber(request, env, json) {
+  let body
+  try { body = await request.json() } catch { body = {} }
+
+  const pin = typeof body.pin === 'string' ? body.pin.trim() : ''
+  if (!/^\d{6}$/.test(pin)) {
+    return json({
+      error: 'validation',
+      message: 'The PIN is exactly six digits. Choose one and keep it — it is needed '
+        + 'again if this number is ever re-registered.',
+    }, 422)
+  }
+
+  const settings = await getSettings(env)
+  const from = phoneId(env, settings.phoneNumberId)
+  if (!env.WHATSAPP_TOKEN || !from) {
+    return json({ error: 'not_configured', message: NOT_CONFIGURED }, 503)
+  }
+
+  const base = env.WHATSAPP_BASE_URL || 'https://graph.facebook.com'
+  let res
+  try {
+    res = await fetch(`${base}/${GRAPH_VERSION}/${from}/register`, {
+      method: 'POST',
+      headers: {
+        authorization: `Bearer ${env.WHATSAPP_TOKEN}`,
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({ messaging_product: 'whatsapp', pin }),
+    })
+  } catch (err) {
+    return json({ error: 'whatsapp_failed', message: `Could not reach WhatsApp: ${err.message}` }, 502)
+  }
+
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok) {
+    const e = data?.error || {}
+    // 133005 is the wrong PIN on a number that already has one; worth naming,
+    // because the fix is "use the PIN you set before", not "try again".
+    const wrongPin = e.code === 133005
+    return json({
+      error: wrongPin ? 'wrong_pin' : 'register_failed',
+      message: wrongPin
+        ? 'That is not this number\u2019s existing two-step PIN. Use the one set when it was '
+          + 'last registered, or reset it in WhatsApp Manager.'
+        : (e.message || `WhatsApp refused the registration (HTTP ${res.status}).`),
+    }, res.status === 400 ? 409 : 502)
+  }
+
+  return json({
+    ok: true,
+    message: 'Registered. The number can now send and receive — re-check the connection.',
   })
 }

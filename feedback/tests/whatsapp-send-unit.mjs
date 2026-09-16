@@ -111,9 +111,29 @@ eq('an unapproved template is reported as Meta described it',
   ['whatsapp_rejected', true])
 
 const unconfigured = await caught(() => sendTemplate({}, { to: '91', template: 't' }))
-eq('no credentials is a 503 naming the secrets to set',
+eq('no credentials is a 503 naming what to set',
   [unconfigured.code, /WHATSAPP_TOKEN/.test(unconfigured.message)],
   ['whatsapp_not_configured', true])
+
+/* The number we send from is a SETTING, not a secret: it changes whenever the
+   business changes number, and that should not mean rotating a secret and
+   redeploying. The secret remains the fallback for anything configured before
+   the field existed. */
+stub(200, { messages: [{ id: 'x' }] })
+await sendTemplate({ ...baseEnv, WHATSAPP_PHONE_ID: 'old' },
+  { to: '91', template: 't', phoneNumberId: 'new-one' })
+eq('the setting wins over the secret',
+  lastCall.url, 'https://graph.facebook.com/v25.0/new-one/messages')
+
+stub(200, { messages: [{ id: 'x' }] })
+await sendTemplate({ ...baseEnv, WHATSAPP_PHONE_ID: 'old' }, { to: '91', template: 't' })
+eq('and the secret is still the fallback',
+  lastCall.url, 'https://graph.facebook.com/v25.0/old/messages')
+
+const noNumber = await caught(() =>
+  sendTemplate({ WHATSAPP_TOKEN: 'tok' }, { to: '91', template: 't' }))
+eq('a token with no number anywhere is refused',
+  noNumber.code, 'whatsapp_not_configured')
 eq('it is a WhatsappError, so callers can branch on it',
   unconfigured instanceof WhatsappError, true)
 
