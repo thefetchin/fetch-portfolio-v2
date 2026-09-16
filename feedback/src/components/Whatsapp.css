@@ -213,3 +213,16 @@
   border-radius: var(--radius-md);
   font-size: 0.9rem;
 }
+
+.wa-nowrap { white-space: nowrap; }
+.wa-err { color: #b91c1c; font-size: 0.8rem; line-height: 1.45; }
+/* A wamid is long and carries no meaning at a glance; it is here to be copied
+   into a Meta support ticket, not read. */
+.wa-msgid {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.7rem;
+  word-break: break-all;
+  display: inline-block;
+  max-width: 24ch;
+}
+.wa-settings .wa-stats, .wa-settings .wa-filters { margin: 0.75rem 0; }

@@ -200,6 +200,110 @@ function Settings({ onError, onNotice }) {
   )
 }
 
+/**
+ * The send log.
+ *
+ * Failures show Meta's own wording, not ours. That text is the whole
+ * diagnostic: "(#132001) Template name does not exist in the translation"
+ * says the template name is fine and the LANGUAGE is wrong, which is not
+ * something a generic "send failed" would ever have revealed.
+ */
+function SendLog({ onError }) {
+  const [data, setData] = useState(null)
+  const [status, setStatus] = useState('')
+  const [busy, setBusy] = useState(false)
+
+  const load = useCallback(async () => {
+    setBusy(true)
+    try {
+      const qs = new URLSearchParams()
+      if (status) qs.set('status', status)
+      const r = await fetch(`/api/admin/whatsapp/sends?${qs}`, { credentials: 'include' })
+      const d = await r.json()
+      if (!r.ok) throw new Error(d.message || 'Could not load the send log.')
+      setData(d)
+    } catch (e) { onError(e.message) } finally { setBusy(false) }
+  }, [status, onError])
+
+  useEffect(() => { load() }, [load])
+
+  const sends = data?.sends || []
+  const st = data?.stats
+
+  return (
+    <details className="wa-settings" open>
+      <summary>Send log</summary>
+
+      {st && (
+        <div className="wa-stats">
+          <div className="wa-stat"><span>{st.sent ?? 0}</span><label>Delivered to Meta</label></div>
+          <div className="wa-stat"><span>{st.failed ?? 0}</span><label>Failed</label></div>
+          <div className="wa-stat"><span>{st.people ?? 0}</span><label>People reached</label></div>
+          <div className="wa-stat"><span>{st.batches ?? 0}</span><label>Sends</label></div>
+        </div>
+      )}
+
+      <div className="wa-filters">
+        <select value={status} onChange={(e) => setStatus(e.target.value)}>
+          <option value="">Everything</option>
+          <option value="sent">Delivered to Meta</option>
+          <option value="failed">Failed</option>
+        </select>
+        <button type="button" className="abtn" onClick={load} disabled={busy}>
+          {busy ? 'Loading…' : 'Refresh'}
+        </button>
+      </div>
+
+      {!sends.length && !busy && (
+        <p className="wa-fine">
+          Nothing sent yet. Use <strong>Notify</strong> on a Pod in Pods &amp; QR codes.
+        </p>
+      )}
+
+      {!!sends.length && (
+        <div className="wa-table-wrap">
+          <table className="wa-table">
+            <thead>
+              <tr>
+                <th>When</th><th>Pod</th><th>To</th><th>Status</th><th>Detail</th>
+              </tr>
+            </thead>
+            <tbody>
+              {sends.map((r) => (
+                <tr key={r.send_id} className={r.status === 'sent' ? '' : 'is-off'}>
+                  <td className="wa-nowrap">{fmtDate(r.created_at)}</td>
+                  <td>
+                    <div>{r.pod_label || r.pod_id}</div>
+                    <div className="wa-fine">{r.template}</div>
+                  </td>
+                  <td className="wa-nowrap">{fmtNumber(r.wa_number)}</td>
+                  <td>
+                    <span className={`wa-badge wa-badge--${r.status === 'sent' ? 'active' : 'invalid'}`}>
+                      {r.status === 'sent' ? 'Sent' : r.status === 'failed' ? 'Failed' : 'Skipped'}
+                    </span>
+                  </td>
+                  <td>
+                    {/* Meta's own words. Deliberately not summarised -- the
+                        error code is what makes it searchable. */}
+                    {r.error
+                      ? <span className="wa-err">{r.error}</span>
+                      : <span className="wa-fine wa-msgid">{r.wa_message_id || '—'}</span>}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      <p className="wa-fine">
+        &ldquo;Sent&rdquo; means WhatsApp accepted the message, not that it has been
+        read. Delivery to the handset is not reported back to us.
+      </p>
+    </details>
+  )
+}
+
 export default function Whatsapp() {
   const [data, setData] = useState(null)
   const [error, setError] = useState(null)
@@ -310,6 +414,7 @@ export default function Whatsapp() {
       {error && <div className="wa-error" role="alert">{error}</div>}
 
       <Settings onError={setError} onNotice={(m) => { setError(null); setNotice(m) }} />
+      <SendLog onError={setError} />
       {notice && <div className="wa-notice" role="status">{notice}</div>}
 
       {stats && (

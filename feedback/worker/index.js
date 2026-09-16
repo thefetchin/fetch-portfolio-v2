@@ -7,7 +7,7 @@ import {
 import { beginIdempotent, maybePrune } from './idempotency.js'
 import { routeInventory } from './inv-routes.js'
 import {
-  handleSettingsGet, handleSettingsPut, handlePodNotify, handlePodSendLog,
+  handleSettingsGet, handleSettingsPut, handlePodNotify, handleSendLog,
 } from './whatsapp-send.js'
 import {
   SUBMISSION_STATUSES, DEBIT_NOTE_STATUSES, WHATSAPP_STATUSES, WA_CONSENT_TEXT,
@@ -790,6 +790,9 @@ export default {
           return await handleDebitNoteStatus(request, env, dnMatch[1])
         }
 
+        if (pathname === '/api/admin/whatsapp/sends' && request.method === 'GET') {
+          return await handleSendLog(request, env, json)
+        }
         if (pathname === '/api/admin/whatsapp/settings' && request.method === 'GET') {
           return await handleSettingsGet(env, json)
         }
@@ -801,11 +804,6 @@ export default {
         if (notifyMatch && request.method === 'POST') {
           return await handlePodNotify(request, env, json, auth.email, notifyMatch[1].toUpperCase())
         }
-        const sendLogMatch = pathname.match(/^\/api\/admin\/pods\/([A-Za-z0-9-]+)\/sends$/)
-        if (sendLogMatch && request.method === 'GET') {
-          return await handlePodSendLog(env, json, sendLogMatch[1].toUpperCase())
-        }
-
         const podMatch = pathname.match(/^\/api\/admin\/pods\/([A-Za-z0-9-]+)$/)
         if (podMatch && request.method === 'PATCH') {
           // `active` alone is the retire/restore toggle; anything else is an

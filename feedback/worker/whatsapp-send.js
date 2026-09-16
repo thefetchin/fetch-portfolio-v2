@@ -321,12 +321,53 @@ export async function handlePodNotify(request, env, json, actor, podId) {
   })
 }
 
-/** The send history for one Pod, newest first. */
-export async function handlePodSendLog(env, json, podId) {
+/**
+ * The send history, newest first, optionally narrowed to one Pod or status.
+ *
+ * Failures carry Meta's own error text rather than anything we invent. That
+ * wording is the entire diagnostic: "(#132001) Template name does not exist in
+ * the translation" says the name is fine and the LANGUAGE is wrong, which no
+ * generic "send failed" would ever have told anyone.
+ */
+export async function handleSendLog(request, env, json) {
+  const url = new URL(request.url)
+  const limit = Math.min(Number.parseInt(url.searchParams.get('limit') || '100', 10) || 100, 500)
+  const podId = url.searchParams.get('pod')
+  const status = url.searchParams.get('status')
+
+  const where = []
+  const binds = []
+  if (podId) {
+    binds.push(podId)
+    where.push(`s.pod_id = ?${binds.length}`)
+  }
+  if (['sent', 'failed', 'skipped'].includes(status)) {
+    binds.push(status)
+    where.push(`s.status = ?${binds.length}`)
+  }
+  binds.push(limit)
+
   const rows = await env.DB.prepare(
-    `SELECT send_id, batch_id, wa_number, status, error, created_at
-       FROM whatsapp_sends WHERE pod_id = ?1
-      ORDER BY created_at DESC LIMIT 100`
-  ).bind(podId).all()
-  return json({ sends: rows.results || [] })
+    `SELECT s.send_id, s.batch_id, s.pod_id, s.wa_number, s.status,
+            s.wa_message_id, s.error, s.template, s.created_at,
+            p.label AS pod_label
+       FROM whatsapp_sends s
+       LEFT JOIN pods p ON p.pod_id = s.pod_id
+       ${where.length ? `WHERE ${where.join(' AND ')}` : ''}
+      ORDER BY s.created_at DESC
+      LIMIT ?${binds.length}`
+  ).bind(...binds).all()
+
+  const stats = await env.DB.prepare(
+    `SELECT
+       COUNT(*)                                             AS total,
+       SUM(CASE WHEN status = 'sent'   THEN 1 ELSE 0 END)   AS sent,
+       SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END)   AS failed,
+       COUNT(DISTINCT wa_number)                            AS people,
+       COUNT(DISTINCT batch_id)                             AS batches,
+       MAX(CASE WHEN status = 'sent' THEN created_at END)   AS last_sent_at
+     FROM whatsapp_sends`
+  ).first()
+
+  return json({ sends: rows.results || [], stats })
 }
