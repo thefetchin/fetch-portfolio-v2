@@ -32,6 +32,12 @@
     "FORM_HOSTNAME": "feedback.thefetch.in",
     "ADMIN_HOSTNAME": "admin.thefetch.in",
 
+    // The WhatsApp Business Account these Pods message from. An identifier,
+    // not a secret -- it appears in every Graph API path. There are three
+    // lookalike accounts on this portfolio, so it is pinned here rather than
+    // picked at runtime.
+    "WHATSAPP_WABA_ID": "1104590189175250",
+
     // Public Turnstile site key. Safe to commit — the *secret* is set with
     //   npx wrangler secret put TURNSTILE_SECRET
     "TURNSTILE_SITE_KEY": ""

@@ -836,3 +836,94 @@ export async function handleChatReply(request, env, json, actor, waNumber) {
     }, err.status || 502)
   }
 }
+
+/* ------------------------------------------------- the WABA <-> app link -- */
+
+/**
+ * Subscribing the WhatsApp Business Account to our app.
+ *
+ * This is a DIFFERENT thing from subscribing to webhook fields in the app
+ * dashboard, and the distinction costs people days. The dashboard controls
+ * which fields the app cares about; this controls whether a particular
+ * WhatsApp Business Account routes its events to the app at all. Embedded
+ * Signup does it silently, so a manual setup can have a perfectly correct
+ * callback URL, a verified token, `messages` ticked -- and receive nothing,
+ * with no error anywhere to explain it.
+ *
+ * Without it there is no inbound path, which is also why the number can look
+ * unreachable to customers.
+ */
+function wabaId(env) {
+  return env.WHATSAPP_WABA_ID || null
+}
+
+async function graph(env, path, method = 'GET') {
+  const base = env.WHATSAPP_BASE_URL || 'https://graph.facebook.com'
+  const res = await fetch(`${base}/${GRAPH_VERSION}/${path}`, {
+    method,
+    headers: { authorization: `Bearer ${env.WHATSAPP_TOKEN}` },
+  })
+  const data = await res.json().catch(() => ({}))
+  return { ok: res.ok, status: res.status, data }
+}
+
+/** Which apps this WhatsApp account currently routes events to. */
+export async function handleWabaStatus(env, json) {
+  const id = wabaId(env)
+  if (!id) {
+    return json({
+      configured: false,
+      message: 'WHATSAPP_WABA_ID is not set, so the account cannot be checked.',
+    })
+  }
+  if (!env.WHATSAPP_TOKEN) {
+    return json({ configured: false, message: 'WHATSAPP_TOKEN is not set.' })
+  }
+
+  const r = await graph(env, `${id}/subscribed_apps`)
+  if (!r.ok) {
+    const e = r.data?.error || {}
+    return json({
+      configured: true,
+      ok: false,
+      // The token needs whatsapp_business_management for this, and saying so
+      // beats a bare permissions error.
+      needsPermission: e.code === 200 || e.code === 190 || r.status === 403,
+      message: e.message || `Could not read the account (HTTP ${r.status}).`,
+    })
+  }
+
+  const apps = (r.data?.data || []).map((a) => ({
+    id: a?.whatsapp_business_api_data?.id || null,
+    name: a?.whatsapp_business_api_data?.name || null,
+    link: a?.whatsapp_business_api_data?.link || null,
+  }))
+  return json({ configured: true, ok: true, wabaId: id, subscribedApps: apps, count: apps.length })
+}
+
+/** Binds this WhatsApp account to the app so its events reach our webhook. */
+export async function handleWabaSubscribe(env, json) {
+  const id = wabaId(env)
+  if (!id) return json({ error: 'not_configured', message: 'WHATSAPP_WABA_ID is not set.' }, 503)
+  if (!env.WHATSAPP_TOKEN) {
+    return json({ error: 'not_configured', message: 'WHATSAPP_TOKEN is not set.' }, 503)
+  }
+
+  const r = await graph(env, `${id}/subscribed_apps`, 'POST')
+  if (!r.ok) {
+    const e = r.data?.error || {}
+    return json({
+      error: 'subscribe_failed',
+      message: e.message || `WhatsApp refused the subscription (HTTP ${r.status}).`,
+      hint: (e.code === 200 || r.status === 403)
+        ? 'The access token needs the whatsapp_business_management permission for this.'
+        : null,
+    }, r.status === 403 ? 403 : 502)
+  }
+
+  return json({
+    ok: true,
+    message: 'This WhatsApp account now routes its messages and statuses to us. '
+      + 'Send a message to the business number to confirm.',
+  })
+}

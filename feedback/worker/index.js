@@ -11,6 +11,7 @@ import {
   handleConnectionCheck, handleWebhookVerify, handleWebhook,
   handleInbox, handleInboxUpdate,
   handleChatList, handleChatThread, handleChatReply,
+  handleWabaStatus, handleWabaSubscribe,
 } from './whatsapp-send.js'
 import {
   SUBMISSION_STATUSES, DEBIT_NOTE_STATUSES, WHATSAPP_STATUSES, WA_CONSENT_TEXT,
@@ -825,6 +826,12 @@ export default {
         const inboxMatch = pathname.match(/^\/api\/admin\/whatsapp\/inbox\/([\w.=-]+)$/)
         if (inboxMatch && request.method === 'PATCH') {
           return await handleInboxUpdate(request, env, json, auth.email, inboxMatch[1])
+        }
+        if (pathname === '/api/admin/whatsapp/waba' && request.method === 'GET') {
+          return await handleWabaStatus(env, json)
+        }
+        if (pathname === '/api/admin/whatsapp/waba/subscribe' && request.method === 'POST') {
+          return await handleWabaSubscribe(env, json)
         }
         if (pathname === '/api/admin/whatsapp/status' && request.method === 'GET') {
           return await handleConnectionCheck(env, json)

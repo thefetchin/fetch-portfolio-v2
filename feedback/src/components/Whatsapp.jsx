@@ -479,15 +479,34 @@ function Connection({ onError }) {
   const [c, setC] = useState(null)
   const [busy, setBusy] = useState(false)
 
+  const [waba, setWaba] = useState(null)
+
   const check = useCallback(async () => {
     setBusy(true)
     try {
-      const r = await fetch('/api/admin/whatsapp/status', { credentials: 'include' })
-      const d = await r.json()
-      if (!r.ok) throw new Error(d.message || 'Could not check the connection.')
-      setC(d)
+      const [s, w] = await Promise.all([
+        fetch('/api/admin/whatsapp/status', { credentials: 'include' }).then((r) => r.json()),
+        fetch('/api/admin/whatsapp/waba', { credentials: 'include' }).then((r) => r.json()),
+      ])
+      setC(s)
+      setWaba(w)
     } catch (e) { onError(e.message) } finally { setBusy(false) }
   }, [onError])
+
+  /* Binds the WhatsApp account to our app. Without it no message or status
+     reaches the webhook, however correct the callback URL is -- and there is
+     no error anywhere to say so. */
+  const connect = async () => {
+    setBusy(true)
+    try {
+      const r = await fetch('/api/admin/whatsapp/waba/subscribe', {
+        method: 'POST', credentials: 'include',
+      })
+      const d = await r.json()
+      if (!r.ok) throw new Error([d.message, d.hint].filter(Boolean).join(' '))
+      await check()
+    } catch (e) { onError(e.message) } finally { setBusy(false) }
+  }
 
   useEffect(() => { check() }, [check])
 
@@ -526,6 +545,37 @@ function Connection({ onError }) {
         <p className="wa-fine">
           Display name status is <strong>{c.nameStatus}</strong>, not APPROVED.
         </p>
+      )}
+
+      {/*
+        Being connected to the app is separate from the callback URL being
+        right, and it is the part with no error message of its own: unsubscribed
+        means messages and statuses simply never arrive.
+      */}
+      {waba && waba.configured && (
+        waba.ok && waba.count > 0 ? (
+          <p className="wa-fine">
+            Receiving is on — this account routes to{' '}
+            {waba.subscribedApps.map((a) => a.name || a.id).join(', ') || 'this app'}.
+          </p>
+        ) : (
+          <div className="wa-waba-warn">
+            <strong>
+              {waba.ok
+                ? 'This WhatsApp account is not connected to the app.'
+                : 'Could not check whether the account is connected.'}
+            </strong>
+            <p className="wa-fine">
+              {waba.ok
+                ? 'Messages from customers and delivery statuses will not reach us '
+                  + 'until it is, no matter how the callback URL is set.'
+                : waba.message}
+            </p>
+            <button type="button" className="abtn" onClick={connect} disabled={busy}>
+              {busy ? 'Connecting…' : 'Connect this account'}
+            </button>
+          </div>
+        )
       )}
     </div>
   )

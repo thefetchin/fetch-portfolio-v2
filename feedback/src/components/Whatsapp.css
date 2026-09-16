@@ -341,3 +341,13 @@
   .wa-chat { grid-template-columns: 1fr; }
   .wa-chat-list { max-height: 220px; }
 }
+
+.wa-waba-warn {
+  margin-top: 0.6rem;
+  padding: 0.7rem 0.85rem;
+  background: rgba(245, 158, 11, 0.09);
+  border: 1px solid rgba(245, 158, 11, 0.35);
+  border-radius: var(--radius-md);
+  color: #92400e;
+}
+.wa-waba-warn p { margin: 0.3rem 0 0.6rem; }
