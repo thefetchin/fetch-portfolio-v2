@@ -11,6 +11,7 @@ import Pods from './Pods'
 import DebitNotes from './DebitNotes'
 import Inventory from './Inventory'
 import Whatsapp from './Whatsapp'
+import QrCodes from './QrCodes'
 import './Admin.css'
 
 const labelMap = (options) =>
@@ -298,6 +299,14 @@ export default function Admin() {
         </button>
         <button
           type="button" role="tab"
+          aria-selected={view === 'qr'}
+          className={`admin-tab ${view === 'qr' ? 'is-active' : ''}`}
+          onClick={() => setView('qr')}
+        >
+          QR generator
+        </button>
+        <button
+          type="button" role="tab"
           aria-selected={view === 'whatsapp'}
           className={`admin-tab ${view === 'whatsapp' ? 'is-active' : ''}`}
           onClick={() => setView('whatsapp')}
@@ -321,6 +330,8 @@ export default function Admin() {
       {view === 'invoicing' && <DebitNotes />}
 
       {view === 'whatsapp' && <Whatsapp />}
+
+      {view === 'qr' && <QrCodes />}
 
       {view === 'submissions' && stats && (
         <div className="stats">

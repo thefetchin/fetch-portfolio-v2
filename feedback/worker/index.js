@@ -7,6 +7,9 @@ import {
 import { beginIdempotent, maybePrune } from './idempotency.js'
 import { routeInventory } from './inv-routes.js'
 import {
+  handleQrList, handleQrCreate, handleQrUpdate, handleQrScans, handleQrRedirect,
+} from './qr.js'
+import {
   handleSettingsGet, handleSettingsPut, handlePodNotify, handleSendLog,
   handleConnectionCheck, handleWebhookVerify, handleWebhook,
   handleInbox, handleInboxUpdate,
@@ -744,6 +747,14 @@ export default {
       // Answered before the host split on purpose. Whichever hostname is
       // pasted into Meta's dashboard should work; a 404 there shows up as
       // "statuses never arrive" with nothing pointing at the cause.
+      // ---- tracked QR redirects, public by definition: a stranger scans a
+      // poster. Counting happens after the response is on its way, so a failed
+      // write never leaves somebody staring at an error.
+      const qrHit = pathname.match(/^\/q\/([A-Z0-9]{4,12})$/i)
+      if (qrHit && request.method === 'GET') {
+        return await handleQrRedirect(request, env, ctx, qrHit[1].toUpperCase(), sha256Hex)
+      }
+
       // ---- header images, public because Meta fetches them itself
       //
       // No session, no signature: these are pictures we chose to publish, and
@@ -850,6 +861,21 @@ export default {
         if (cannedMatch && request.method === 'DELETE') {
           return await handleCannedDelete(env, json, cannedMatch[1])
         }
+        if (pathname === '/api/admin/qr' && request.method === 'GET') {
+          return await handleQrList(env, json)
+        }
+        if (pathname === '/api/admin/qr' && request.method === 'POST') {
+          return await handleQrCreate(request, env, json, auth.email)
+        }
+        const qrScanMatch = pathname.match(/^\/api\/admin\/qr\/([A-Z0-9]+)\/scans$/)
+        if (qrScanMatch && request.method === 'GET') {
+          return await handleQrScans(env, json, qrScanMatch[1])
+        }
+        const qrMatch = pathname.match(/^\/api\/admin\/qr\/([A-Z0-9]+)$/)
+        if (qrMatch && request.method === 'PATCH') {
+          return await handleQrUpdate(request, env, json, qrMatch[1])
+        }
+
         if (pathname === '/api/admin/whatsapp/media' && request.method === 'GET') {
           return await handleMediaList(env, json)
         }
