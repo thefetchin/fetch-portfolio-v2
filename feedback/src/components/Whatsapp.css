@@ -400,3 +400,26 @@
   border-radius: var(--radius-md);
   font-size: 15px; background: var(--ink-0); color: var(--ink-900);
 }
+
+/* --------------------------------------------------------- header media -- */
+
+.wa-media-row { display: flex; flex-wrap: wrap; align-items: center; gap: 0.6rem; }
+
+.wa-file { position: relative; overflow: hidden; cursor: pointer; }
+.wa-file input[type="file"] { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+
+.wa-media-preview {
+  max-height: 72px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--ink-200);
+}
+
+.wa-media-pick {
+  padding: 0; border: 2px solid transparent; background: none;
+  border-radius: var(--radius-md); cursor: pointer; line-height: 0;
+}
+.wa-media-pick img {
+  height: 52px; border-radius: calc(var(--radius-md) - 2px);
+  border: 1px solid var(--ink-200); display: block;
+}
+.wa-media-pick.is-active { border-color: var(--brand-500); }

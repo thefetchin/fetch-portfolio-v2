@@ -1147,3 +1147,102 @@ export async function handleTemplateInspect(env, json) {
     matches: problems.length === 0,
   })
 }
+
+/* ----------------------------------------------------------- header media -- */
+
+/** SQLite caps a value just under 1MB and the row carries more than the bytes,
+ *  so this leaves room. WhatsApp itself allows 5MB, but that is not the
+ *  binding limit here and pretending otherwise would fail at the write. */
+export const MAX_MEDIA_BYTES = 800 * 1024
+
+const MEDIA_TYPES = {
+  'image/png': 'png',
+  'image/jpeg': 'jpg',
+}
+
+/**
+ * Stores a header image and returns the public URL to put in the settings.
+ *
+ * The id is part of the URL on purpose. Meta caches media by URL, so replacing
+ * the picture at a fixed address would keep delivering the old one; a fresh id
+ * means a fresh URL and no stale cache to reason about.
+ */
+export async function handleMediaUpload(request, env, json, actor) {
+  const contentType = (request.headers.get('content-type') || '').split(';')[0].trim()
+  if (!MEDIA_TYPES[contentType]) {
+    return json({
+      error: 'validation',
+      message: 'The header image has to be a PNG or a JPEG.',
+    }, 415)
+  }
+
+  const buf = await request.arrayBuffer()
+  if (!buf.byteLength) {
+    return json({ error: 'validation', message: 'That file was empty.' }, 422)
+  }
+  if (buf.byteLength > MAX_MEDIA_BYTES) {
+    return json({
+      error: 'too_large',
+      message: `That image is ${Math.round(buf.byteLength / 1024)}KB. The limit here is `
+        + `${Math.round(MAX_MEDIA_BYTES / 1024)}KB — export it smaller, or at a lower resolution.`,
+    }, 413)
+  }
+
+  const ext = MEDIA_TYPES[contentType]
+  const mediaId = `wam_${crypto.randomUUID().slice(0, 12)}`
+  const filename = cleanText(request.headers.get('x-filename'), 120)
+
+  await env.DB.prepare(
+    `INSERT INTO whatsapp_media (media_id, filename, content_type, bytes, size, uploaded_by)
+     VALUES (?1, ?2, ?3, ?4, ?5, ?6)`
+  ).bind(mediaId, filename, contentType, buf, buf.byteLength, actor || null).run()
+
+  // Served from the PUBLIC host: Meta fetches it with no session of ours, so
+  // it cannot sit behind the dashboard's auth.
+  const host = env.FORM_HOSTNAME || new URL(request.url).host
+  const url = `https://${host}/media/whatsapp/${mediaId}.${ext}`
+
+  return json({ ok: true, mediaId, url, size: buf.byteLength, contentType })
+}
+
+/** Serves a stored header image. Public and unauthenticated by necessity. */
+export async function handleMediaGet(env, mediaId) {
+  const row = await env.DB.prepare(
+    'SELECT content_type, bytes FROM whatsapp_media WHERE media_id = ?1'
+  ).bind(mediaId).first()
+
+  if (!row) return new Response('not found', { status: 404 })
+
+  // D1 hands a BLOB back as a plain array of byte values, not a buffer.
+  // Passing that straight to Response yields a 200 with an EMPTY body -- right
+  // status, right content type, no picture, and Meta would simply fail to
+  // fetch the header with nothing to explain why.
+  const bytes = row.bytes instanceof ArrayBuffer
+    ? new Uint8Array(row.bytes)
+    : new Uint8Array(Array.isArray(row.bytes) ? row.bytes : [])
+
+  return new Response(bytes, {
+    headers: {
+      'content-type': row.content_type,
+      // The id is unique per upload, so the bytes at this URL never change and
+      // can be cached hard -- by Meta and by anything else.
+      'cache-control': 'public, max-age=31536000, immutable',
+    },
+  })
+}
+
+/** Previously uploaded images, so one can be picked again without re-uploading. */
+export async function handleMediaList(env, json) {
+  const rows = await env.DB.prepare(
+    `SELECT media_id, filename, content_type, size, uploaded_at, uploaded_by
+       FROM whatsapp_media ORDER BY uploaded_at DESC LIMIT 20`
+  ).all()
+  const host = env.FORM_HOSTNAME || 'feedback.thefetch.in'
+  return json({
+    media: (rows.results || []).map((m) => ({
+      ...m,
+      url: `https://${host}/media/whatsapp/${m.media_id}.${m.content_type === 'image/png' ? 'png' : 'jpg'}`,
+    })),
+    maxBytes: MAX_MEDIA_BYTES,
+  })
+}

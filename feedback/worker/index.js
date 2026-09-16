@@ -14,6 +14,7 @@ import {
   handleWabaStatus, handleWabaSubscribe,
   handleCannedList, handleCannedCreate, handleCannedDelete,
   handleTemplateInspect,
+  handleMediaUpload, handleMediaGet, handleMediaList,
 } from './whatsapp-send.js'
 import {
   SUBMISSION_STATUSES, DEBIT_NOTE_STATUSES, WHATSAPP_STATUSES, WA_CONSENT_TEXT,
@@ -743,6 +744,16 @@ export default {
       // Answered before the host split on purpose. Whichever hostname is
       // pasted into Meta's dashboard should work; a 404 there shows up as
       // "statuses never arrive" with nothing pointing at the cause.
+      // ---- header images, public because Meta fetches them itself
+      //
+      // No session, no signature: these are pictures we chose to publish, and
+      // the id is a random 12 characters so the URL is not guessable from the
+      // outside even though it is not secret.
+      const mediaMatch = pathname.match(/^\/media\/whatsapp\/([\w-]+)\.(?:png|jpg)$/)
+      if (mediaMatch && request.method === 'GET') {
+        return await handleMediaGet(env, mediaMatch[1])
+      }
+
       if (pathname === '/api/whatsapp/webhook') {
         if (request.method === 'GET') return handleWebhookVerify(request, env)
         if (request.method === 'POST') return await handleWebhook(request, env, ctx)
@@ -838,6 +849,12 @@ export default {
         const cannedMatch = pathname.match(/^\/api\/admin\/whatsapp\/canned\/([\w-]+)$/)
         if (cannedMatch && request.method === 'DELETE') {
           return await handleCannedDelete(env, json, cannedMatch[1])
+        }
+        if (pathname === '/api/admin/whatsapp/media' && request.method === 'GET') {
+          return await handleMediaList(env, json)
+        }
+        if (pathname === '/api/admin/whatsapp/media' && request.method === 'POST') {
+          return await handleMediaUpload(request, env, json, auth.email)
         }
         if (pathname === '/api/admin/whatsapp/template' && request.method === 'GET') {
           return await handleTemplateInspect(env, json)

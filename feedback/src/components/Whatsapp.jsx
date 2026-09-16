@@ -62,7 +62,38 @@ const SUGGESTED_BODY =
 function Settings({ onError, onNotice }) {
   const [s, setS] = useState(null)
   const [tpl, setTpl] = useState(null)
+  const [media, setMedia] = useState(null)
+  const [uploading, setUploading] = useState(false)
   const [busy, setBusy] = useState(false)
+
+  const loadMedia = useCallback(async () => {
+    try {
+      const r = await fetch('/api/admin/whatsapp/media', { credentials: 'include' })
+      if (r.ok) setMedia(await r.json())
+    } catch { /* the URL field still works without the gallery */ }
+  }, [])
+
+  /*
+    Sent as a raw body with the file's own content type rather than multipart:
+    there is exactly one file and no other fields, so a multipart parser would
+    be machinery for nothing.
+  */
+  const upload = async (file) => {
+    if (!file) return
+    setUploading(true)
+    try {
+      const r = await fetch('/api/admin/whatsapp/media', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'content-type': file.type, 'x-filename': file.name },
+        body: file,
+      })
+      const d = await r.json()
+      if (!r.ok) throw new Error(d.message || 'Could not upload that image.')
+      setS((cur) => ({ ...cur, headerMediaUrl: d.url }))
+      await loadMedia()
+    } catch (e) { onError(e.message) } finally { setUploading(false) }
+  }
 
   const load = useCallback(async () => {
     try {
@@ -78,6 +109,7 @@ function Settings({ onError, onNotice }) {
   }, [onError])
 
   useEffect(() => { load() }, [load])
+  useEffect(() => { loadMedia() }, [loadMedia])
 
   const save = async () => {
     setBusy(true)
@@ -199,18 +231,56 @@ function Settings({ onError, onNotice }) {
       </label>
 
       {s.headerFormat && s.headerFormat !== 'NONE' && (
-        <label className="wa-field">
-          <span>Header file URL</span>
-          <input
-            value={s.headerMediaUrl || ''}
-            placeholder="https://thefetch.in/og-image.png"
-            onChange={(e) => setS({ ...s, headerMediaUrl: e.target.value })}
-          />
-          <em>
-            WhatsApp fetches this itself when the message is sent, so it must be
-            a public https URL — not behind a login.
-          </em>
-        </label>
+        <>
+          <div className="wa-field">
+            <span>Header image</span>
+            <div className="wa-media-row">
+              <label className="abtn wa-file">
+                {uploading ? 'Uploading…' : 'Upload an image'}
+                <input
+                  type="file" accept="image/png,image/jpeg"
+                  onChange={(e) => { upload(e.target.files?.[0]); e.target.value = '' }}
+                />
+              </label>
+              {s.headerMediaUrl && (
+                <img className="wa-media-preview" src={s.headerMediaUrl} alt="Header preview" />
+              )}
+            </div>
+            <em>
+              PNG or JPEG, up to {Math.round((media?.maxBytes || 819200) / 1024)}KB. WhatsApp
+              fetches it itself when the message is sent, so we host it for you at a
+              public address. 1200×630 fits the header without cropping.
+            </em>
+          </div>
+
+          <label className="wa-field">
+            <span>Header file URL</span>
+            <input
+              value={s.headerMediaUrl || ''}
+              placeholder="https://thefetch.in/og-image.png"
+              onChange={(e) => setS({ ...s, headerMediaUrl: e.target.value })}
+            />
+            <em>Filled in by the upload. Paste your own if the image is hosted elsewhere.</em>
+          </label>
+
+          {!!media?.media?.length && (
+            <div className="wa-field">
+              <span>Previously uploaded</span>
+              <div className="wa-media-row">
+                {media.media.map((m) => (
+                  <button
+                    key={m.media_id} type="button"
+                    className={`wa-media-pick ${s.headerMediaUrl === m.url ? 'is-active' : ''}`}
+                    title={`${m.filename || m.media_id} · ${Math.round(m.size / 1024)}KB`}
+                    onClick={() => setS({ ...s, headerMediaUrl: m.url })}
+                  >
+                    <img src={m.url} alt={m.filename || 'Uploaded image'} />
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+        </>
       )}
 
       <label className="wa-field">
