@@ -35,12 +35,17 @@ const VARIABLE_FIELDS = [
   { value: 'pod_city', label: 'Pod city' },
 ]
 
-/** A short, friendly body to register with Meta. Emojis are allowed in an
- *  approved template; the variables are positional. */
+/**
+ * A short, friendly body to register with Meta.
+ *
+ * One emoji, not one per item: a line of them reads as a promotion nobody
+ * asked for, and these people asked. {{1}} is a POSITIONAL parameter -- Meta's
+ * editor also offers named ones, and the sender here fills positions in order.
+ */
 const SUGGESTED_BODY =
-  '\u{1F389} Good news! The Fetch Pod at {{1}} has just been restocked.\n\n'
-  + '\u{1F36B} Snacks, \u{1F964} cold drinks and \u{1F4A7} water are all back in.\n\n'
-  + 'Pop by whenever you fancy something \u2014 see you soon! \u{1F44B}'
+  '\u{1F389} Good news \u2014 the Fetch Pod at {{1}} has just been restocked.\n\n'
+  + 'Fresh snacks, chocolates and chilled drinks are waiting for you.\n\n'
+  + 'Pop by whenever you fancy something.'
 
 /**
  * Message settings.

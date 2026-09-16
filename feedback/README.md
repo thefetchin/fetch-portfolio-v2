@@ -354,13 +354,18 @@ fail on every attempt with error 132000, and it would look like our bug.
 1. In Meta Business Manager, create a message template. Suggested body, which
    the panel will offer you:
 
-   > 🎉 Good news! The Fetch Pod at {{1}} has just been restocked.
+   > 🎉 Good news — the Fetch Pod at {{1}} has just been restocked.
    >
-   > 🍫 Snacks, 🥤 cold drinks and 💧 water are all back in.
+   > Fresh snacks, chocolates and chilled drinks are waiting for you.
    >
-   > Pop by whenever you fancy something — see you soon! 👋
+   > Pop by whenever you fancy something.
 
-   Category **Utility**. Emojis are fine in an approved template.
+   Category **Marketing**, not Utility. Utility is for transactional follow-ups
+   to something the customer asked for; announcing that stock is back is a
+   product announcement, and submitting it as Utility gets it rejected or
+   reclassified. Use **positional** parameters — the sender fills `{{1}}`,
+   `{{2}}` in order, so a template built with named parameters will not
+   receive its variables.
 
 2. Set the credentials as Worker secrets — never in the repo:
 
