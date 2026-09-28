@@ -1,15 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import {
-  ISSUE_TYPES,
-  OCCURRED_WHEN,
-  PRODUCT_CATEGORIES,
-  PRICE_FEEL,
-  USAGE_FREQ,
-  RATINGS,
-  PAYMENT_ISSUES,
-  LIMITS,
-  WA_CONSENT_TEXT,
-} from '../../shared/constants.js'
+/* The option lists that used to live here are rows now -- the server tells
+   each machine what to ask. Only RATINGS stays, because the rating scale is
+   behaviour: it is the one answer every report has and the one the dashboard
+   averages. */
+import { RATINGS, LIMITS, WA_CONSENT_TEXT } from '../../shared/constants.js'
 import Turnstile from './Turnstile'
 import './FeedbackForm.css'
 
@@ -46,19 +40,36 @@ export default function FeedbackForm({ podId, podToken }) {
 
   // answers
   const [rating, setRating] = useState(null)
-  const [wantedCategories, setWantedCategories] = useState([])
-  const [wantedText, setWantedText] = useState('')
-  const [priceFeel, setPriceFeel] = useState(null)
-  const [usageFreq, setUsageFreq] = useState(null)
 
-  const [issueType, setIssueType] = useState(null)
-  const [occurredWhen, setOccurredWhen] = useState(null)
+  /* Answers live in one object keyed by question, because the questions are
+     now rows in the database and a machine type can have any number of them.
+     A useState per question stopped being possible the moment coffee machines
+     asked different ones. */
+  const [answers, setAnswers] = useState({})
+  const [questions, setQuestions] = useState({ feedback: [], complaint: [] })
+
+  /* Rows they have explicitly marked "didn't try". Deliberately NOT part of
+     `answers`: to the server, and to anyone counting later, it is the same as
+     leaving the row alone. It exists only so the button looks tapped when they
+     tap it -- showing it as chosen by default made an untouched row read as
+     answered. */
+  const [skipped, setSkipped] = useState({})
+  const markSkipped = (key, on) => setSkipped((s) => ({ ...s, [key]: on }))
+
+  /* Takes a value or an updater. The updater form matters where two taps can
+     land in the same tick -- both would otherwise read the same stale array
+     from a closure and one tap would be lost. `fallback` is the empty answer,
+     since only the caller knows whether that is [] or null. */
+  const setAnswer = (key, value, fallback = null) =>
+    setAnswers((a) => ({
+      ...a,
+      [key]: typeof value === 'function' ? value(a[key] ?? fallback) : value,
+    }))
+
   const [amount, setAmount] = useState('')
   const [paymentRef, setPaymentRef] = useState('')
   const [refundRequested, setRefundRequested] = useState(false)
 
-  const [productCategory, setProductCategory] = useState(null)
-  const [productText, setProductText] = useState('')
   const [comment, setComment] = useState('')
   // One contact field, and it is the WhatsApp number. The +91 is fixed in the
   // markup rather than sitting in this value, so it cannot be half-deleted and
@@ -73,7 +84,11 @@ export default function FeedbackForm({ podId, podToken }) {
         const data = await res.json()
         if (cancelled) return
         if (!res.ok) setPodError(data.message || 'This link is not valid.')
-        else setPod(data.pod)
+        else {
+          setPod(data.pod)
+          // The server says what to ask. A new machine type is rows, not a deploy.
+          setQuestions(data.questions || { feedback: [], complaint: [] })
+        }
       })
       .catch(() => !cancelled && setPodError('We could not reach the server.'))
 
@@ -85,11 +100,55 @@ export default function FeedbackForm({ podId, podToken }) {
     return () => { cancelled = true }
   }, [podId, podToken])
 
-  const isPaymentIssue = PAYMENT_ISSUES.includes(issueType)
+  /* Whether to ask for an amount follows the option they picked, which carries
+     the flag, rather than a hardcoded list the form could disagree with. */
+  const isPaymentIssue = (questions.complaint || []).some((q) => {
+    if (q.mapsTo !== 'issue_type') return false
+    return q.options?.find((o) => o.value === answers[q.key])?.payment === true
+  })
 
   /* ------------------------------------------------------------ steps -- */
 
+  /**
+   * The steps are built from whatever the server said this machine asks.
+   *
+   * Only three things are still hardcoded, because they are behaviour rather
+   * than wording: the rating, the payment block that appears for payment-type
+   * issues, and the closing step with the comment and the WhatsApp opt-in. An
+   * editor that could delete those could break a refund or a consent record.
+   */
   const steps = useMemo(() => {
+    const asked = (questions[mode] || []).map((q) => ({
+      key: q.key,
+      kicker: q.kicker,
+      title: q.title,
+      hint: q.hint,
+      type: q.type,
+      options: q.options,
+      scale: q.scale || [],
+      value: answers[q.key] ?? (q.type === 'multi' ? [] : null),
+      onChange: (v) => setAnswer(q.key, v, q.type === 'multi' ? [] : null),
+      optional: q.optional,
+      answered: q.type === 'multi'
+        ? (answers[q.key] || []).length > 0
+        // A grid is answered once any one row is: nobody has tried every
+        // drink, and insisting on it would be a questionnaire, not a question.
+        : q.type === 'item_grid'
+          ? Object.keys(answers[q.key] || {}).length > 0
+          : answers[q.key] != null,
+      ...(q.extraPlaceholder ? {
+        extra: {
+          placeholder: q.extraPlaceholder,
+          value: answers[`${q.key}__extra`] || '',
+          onChange: (v) => setAnswer(`${q.key}__extra`, v),
+          max: 200,
+        },
+        // Don't auto-advance past a question with a text box under it; they
+        // may still be typing.
+        stay: true,
+      } : {}),
+    }))
+
     if (mode === FEEDBACK) {
       return [
         {
@@ -99,94 +158,19 @@ export default function FeedbackForm({ podId, podToken }) {
           type: 'rating',
           answered: rating != null,
         },
-        {
-          key: 'wanted',
-          kicker: 'Your call',
-          title: 'What should we stock here?',
-          hint: 'Pick as many as you like.',
-          type: 'multi',
-          options: PRODUCT_CATEGORIES,
-          value: wantedCategories,
-          onChange: setWantedCategories,
-          extra: {
-            placeholder: 'Any particular brand or item?',
-            value: wantedText,
-            onChange: setWantedText,
-            max: LIMITS.wantedText,
-          },
-          optional: true,
-        },
-        {
-          key: 'price',
-          kicker: 'Be honest',
-          title: 'How do the prices feel?',
-          type: 'single',
-          options: PRICE_FEEL,
-          value: priceFeel,
-          onChange: setPriceFeel,
-          optional: true,
-        },
-        {
-          key: 'usage',
-          kicker: 'Last one',
-          title: 'How often do you use this Pod?',
-          type: 'single',
-          options: USAGE_FREQ,
-          value: usageFreq,
-          onChange: setUsageFreq,
-          optional: true,
-        },
+        ...asked,
         { key: 'wrap', kicker: 'Anything else?', title: 'Want to add something?', type: 'wrap' },
       ]
     }
 
     return [
-      {
-        key: 'issue',
-        kicker: 'Sorry about this',
-        title: 'What went wrong?',
-        type: 'single',
-        options: ISSUE_TYPES,
-        value: issueType,
-        onChange: setIssueType,
-        answered: issueType != null,
-      },
-      {
-        key: 'when',
-        kicker: 'Timing',
-        title: 'When did it happen?',
-        type: 'single',
-        options: OCCURRED_WHEN,
-        value: occurredWhen,
-        onChange: setOccurredWhen,
-        answered: occurredWhen != null,
-      },
-      {
-        key: 'product',
-        kicker: 'Optional',
-        title: 'Which product was it?',
-        type: 'single',
-        options: PRODUCT_CATEGORIES,
-        value: productCategory,
-        onChange: setProductCategory,
-        extra: {
-          placeholder: 'Name the item, if you remember',
-          value: productText,
-          onChange: setProductText,
-          max: LIMITS.productText,
-        },
-        optional: true,
-        stay: true, // don't auto-advance; they may want to type
-      },
+      ...asked,
       ...(isPaymentIssue
         ? [{ key: 'payment', kicker: 'For your refund', title: 'What did you pay?', type: 'payment', optional: true }]
         : []),
       { key: 'wrap', kicker: 'Almost done', title: 'How can we reach you?', type: 'wrap' },
     ]
-  }, [
-    mode, rating, wantedCategories, wantedText, priceFeel, usageFreq,
-    issueType, occurredWhen, productCategory, productText, isPaymentIssue,
-  ])
+  }, [mode, questions, answers, rating, isPaymentIssue])
 
   const step = steps[Math.min(stepIndex, steps.length - 1)]
   const isLast = stepIndex >= steps.length - 1
@@ -234,10 +218,11 @@ export default function FeedbackForm({ podId, podToken }) {
   const phoneEntered = contactPhone.length > 0
   const phoneValid = /^[6-9]\d{9}$/.test(contactPhone)
 
+  /* A required question blocks Next. Which questions are required is now a
+     column, so this asks the step rather than naming keys it cannot know. */
   const canContinue = () => {
     if (step.type === 'rating') return rating != null
-    if (step.key === 'issue') return issueType != null
-    if (step.key === 'when') return occurredWhen != null
+    if (step.optional === false) return step.answered === true
     return true
   }
 
@@ -246,8 +231,9 @@ export default function FeedbackForm({ podId, podToken }) {
   const submit = async () => {
     setError(null)
     if (mode === COMPLAINT) {
-      if (!issueType) return setError('Please tell us what went wrong.')
-      if (!occurredWhen) return setError('Please tell us when this happened.')
+      const missing = (questions.complaint || [])
+        .find((q) => !q.optional && answers[q.key] == null)
+      if (missing) return setError(`${missing.title} — please answer this.`)
       if (refundRequested && !phoneEntered) {
         return setError('Add your WhatsApp number so we can send the refund.')
       }
@@ -272,10 +258,11 @@ export default function FeedbackForm({ podId, podToken }) {
           podId, podToken, kind: mode, turnstileToken,
           website: honeypot,
           dwellMs: Date.now() - mountedAt.current,
-          issueType, occurredWhen, amount: amount || null, paymentRef, refundRequested,
-          rating, wantedCategories, wantedText, priceFeel, usageFreq,
-          whatsappOptIn,
-          productCategory, productText, comment, contactPhone,
+          amount: amount || null, paymentRef, refundRequested,
+          rating, whatsappOptIn,
+          // Keyed by question, because the questions are data now.
+          answers,
+          comment, contactPhone,
         }),
       })
       const data = await res.json()
@@ -419,6 +406,62 @@ export default function FeedbackForm({ podId, podToken }) {
                       <span className="fx-option-label">{opt.label}</span>
                       <span className="fx-option-mark" aria-hidden="true">{on ? '✓' : ''}</span>
                     </button>
+                  )
+                })}
+              </div>
+            )}
+
+            {/* ---------- a row per item, rated on one scale ---------- */}
+            {/* Every drink is listed with the same buttons beside it, so
+                someone who has had three can rate three without hunting for
+                them. Nothing is chosen to begin with: a row they never touch
+                is a drink they did not have, which is what "Didn't try" says
+                anyway. The button is there to say it out loud, or to undo a
+                mis-tap -- not a state the form assumes on their behalf. */}
+            {step.type === 'item_grid' && (
+              <div className="fx-grid" role="group">
+                {step.options.map((opt) => {
+                  const chosen = step.value?.[opt.value] || null
+                  const skipKey = `${step.key}:${opt.value}`
+                  const skipOn = !chosen && !!skipped[skipKey]
+                  return (
+                    <div key={opt.value} className={`fx-grid-row ${chosen ? 'is-done' : ''}`}>
+                      <span className="fx-grid-name">{opt.label}</span>
+                      <div className="fx-grid-scale">
+                        {step.scale.map((lv) => {
+                          const on = chosen === lv.value
+                          return (
+                            <button
+                              type="button" key={lv.value}
+                              className={`fx-grid-btn ${on ? 'is-on' : ''}`}
+                              aria-pressed={on}
+                              aria-label={`${opt.label}: ${lv.label}`}
+                              onClick={() => {
+                                if (skipped[skipKey]) markSkipped(skipKey, false)
+                                step.onChange((prev) => ({
+                                  ...(prev || {}),
+                                  [opt.value]: lv.value,
+                                }))
+                              }}
+                            >{lv.label}</button>
+                          )
+                        })}
+                        <button
+                          type="button"
+                          className={`fx-grid-btn ${skipOn ? 'is-on' : ''}`}
+                          aria-pressed={skipOn}
+                          aria-label={`${opt.label}: didn't try`}
+                          onClick={() => {
+                            markSkipped(skipKey, !skipOn)
+                            step.onChange((prev) => {
+                              const next = { ...(prev || {}) }
+                              delete next[opt.value]
+                              return next
+                            })
+                          }}
+                        >Didn't try</button>
+                      </div>
+                    </div>
                   )
                 })}
               </div>

@@ -570,3 +570,66 @@
   .fx-step, .fx-msg-mark { animation: none; }
   .fx-progress-bar { transition: none; }
 }
+
+/* ------------------------------------------------ a row per item -- */
+/* Name on the left, the same buttons beside every row. Nine drinks on a phone
+   means the rows have to be short, so the name sits above its buttons rather
+   than beside them -- side by side would leave the buttons about 40px wide. */
+
+.fx-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  max-height: 46vh;
+  overflow-y: auto;
+  padding-right: 0.15rem;
+}
+
+.fx-grid-row {
+  padding: 0.5rem 0.6rem;
+  background: var(--ink-0);
+  border: 1.5px solid var(--ink-200);
+  border-radius: var(--fx-r-sm);
+}
+
+/* A rated row is marked, so it is obvious at a glance which drinks are done
+   without reading every button. */
+.fx-grid-row.is-done { border-color: var(--brand-400); background: var(--brand-50); }
+
+.fx-grid-name {
+  display: block;
+  margin-bottom: 0.4rem;
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--ink-800, var(--ink-700));
+}
+
+.fx-grid-scale {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0.3rem;
+}
+
+.fx-grid-btn {
+  appearance: none;
+  cursor: pointer;
+  min-height: 40px;
+  padding: 0.3rem 0.15rem;
+  background: var(--ink-0);
+  border: 1.5px solid var(--ink-200);
+  border-radius: calc(var(--fx-r-sm) * 0.7);
+  font-size: 0.7rem;
+  font-weight: 500;
+  line-height: 1.2;
+  color: var(--ink-700);
+  transition: border-color 0.14s ease, background 0.14s ease, color 0.14s ease;
+}
+
+.fx-grid-btn:hover { border-color: var(--brand-400); }
+
+.fx-grid-btn.is-on {
+  background: var(--ink-900);
+  border-color: var(--ink-900);
+  color: var(--ink-0);
+  font-weight: 600;
+}

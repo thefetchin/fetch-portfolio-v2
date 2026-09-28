@@ -7,6 +7,10 @@ import {
 import { beginIdempotent, maybePrune } from './idempotency.js'
 import { routeInventory } from './inv-routes.js'
 import {
+  loadQuestions, validateAnswers, isPaymentIssue, MACHINE_TYPE_VALUES,
+  handleQuestionsList, handleQuestionSave, handleQuestionDelete,
+} from './questions.js'
+import {
   handleQrList, handleQrCreate, handleQrUpdate, handleQrScans, handleQrRedirect,
 } from './qr.js'
 import {
@@ -145,7 +149,7 @@ async function handlePodLookup(request, env, podId) {
   }
 
   const pod = await env.DB.prepare(
-    'SELECT pod_id, label, location, city, active FROM pods WHERE pod_id = ?1'
+    'SELECT pod_id, label, location, city, active, machine_type FROM pods WHERE pod_id = ?1'
   ).bind(podId).first()
 
   if (!pod) {
@@ -155,13 +159,22 @@ async function handlePodLookup(request, env, podId) {
     return json({ error: 'inactive_pod', message: 'This Pod is no longer in service.' }, 410)
   }
 
+  // The form is told what to ask rather than knowing it, so a new machine type
+  // is rows in the database rather than a deploy.
+  const [feedback, complaint] = await Promise.all([
+    loadQuestions(env, pod.machine_type, 'feedback'),
+    loadQuestions(env, pod.machine_type, 'complaint'),
+  ])
+
   return json({
     pod: {
       podId: pod.pod_id,
       label: pod.label,
       location: pod.location,
       city: pod.city,
+      machineType: pod.machine_type,
     },
+    questions: { feedback, complaint },
   })
 }
 
@@ -185,7 +198,7 @@ async function handleSubmit(request, env) {
   }
 
   const pod = await env.DB.prepare(
-    'SELECT pod_id, active FROM pods WHERE pod_id = ?1'
+    'SELECT pod_id, active, machine_type FROM pods WHERE pod_id = ?1'
   ).bind(podId).first()
   if (!pod) return json({ error: 'unknown_pod', message: 'We could not find that Pod.' }, 404)
   if (!pod.active) return json({ error: 'inactive_pod', message: 'This Pod is retired.' }, 410)
@@ -194,11 +207,25 @@ async function handleSubmit(request, env) {
   const turnstile = await verifyTurnstile(env, payload.turnstileToken, ip)
   if (!turnstile.ok) return json({ error: 'bot_check', message: turnstile.reason }, 403)
 
-  const result = validateSubmission(payload)
-  if (!result.ok) {
-    return json({ error: 'validation', message: result.errors[0], errors: result.errors }, 422)
+  // Answers are checked against the questions this machine actually asks. The
+  // client is told what to ask by us, but it is still a client: an option that
+  // is not on the question is dropped, exactly as the hardcoded enums were
+  // whitelisted before.
+  const kind = payload.kind === 'complaint' ? 'complaint' : 'feedback'
+  const questions = await loadQuestions(env, pod.machine_type, kind)
+  const { answers, mapped, errors: answerErrors } = validateAnswers(questions, payload.answers)
+
+  const result = validateSubmission(payload, {
+    mapped,
+    // Whether to require the amount-and-reference block is a property of the
+    // option they chose, not of a hardcoded list of issue types.
+    paymentIssue: isPaymentIssue(questions, answers),
+  })
+  const allErrors = [...answerErrors, ...(result.ok ? [] : result.errors)]
+  if (allErrors.length) {
+    return json({ error: 'validation', message: allErrors[0], errors: allErrors }, 422)
   }
-  const v = result.value
+  const v = { ...result.value, ...mapped, answers: Object.keys(answers).length ? JSON.stringify(answers) : null }
 
   // Hash the IP with a server secret — we get abuse controls without
   // retaining a raw IP against a person's complaint.
@@ -236,18 +263,21 @@ async function handleSubmit(request, env) {
          id, pod_id, kind, ip_hash, country, user_agent, dedupe_hash,
          issue_type, occurred_when, amount_paise, payment_ref, refund_requested,
          rating, wanted_categories, wanted_text, price_feel, usage_freq, notify_opt_in,
-         product_category, product_text, comment, contact_email, contact_phone
+         product_category, product_text, comment, contact_email, contact_phone,
+         answers
        ) VALUES (
          ?1, ?2, ?3, ?4, ?5, ?6, ?7,
          ?8, ?9, ?10, ?11, ?12,
          ?13, ?14, ?15, ?16, ?17, ?18,
-         ?19, ?20, ?21, ?22, ?23
+         ?19, ?20, ?21, ?22, ?23,
+         ?24
        )`
     ).bind(
       id, podId, v.kind, ipHash, country, ua, dedupeHash,
       v.issue_type, v.occurred_when, v.amount_paise, v.payment_ref, v.refund_requested,
       v.rating, v.wanted_categories, v.wanted_text, v.price_feel, v.usage_freq, v.notify_opt_in,
-      v.product_category, v.product_text, v.comment, v.contact_email, v.contact_phone
+      v.product_category, v.product_text, v.comment, v.contact_email, v.contact_phone,
+      v.answers
     ))
 
     if (v.whatsapp_opt_in) {
@@ -447,7 +477,7 @@ async function podUrl(env, podId) {
 
 async function handleAdminPodsList(request, env) {
   const rows = await env.DB.prepare(
-    `SELECT p.pod_id, p.label, p.location, p.city, p.active, p.created_at,
+    `SELECT p.pod_id, p.label, p.location, p.city, p.active, p.machine_type, p.created_at,
             (SELECT COUNT(*) FROM submissions s WHERE s.pod_id = p.pod_id) AS submission_count
        FROM pods p
       ORDER BY p.created_at DESC`
@@ -457,6 +487,7 @@ async function handleAdminPodsList(request, env) {
     (rows.results || []).map(async (p) => ({
       podId: p.pod_id,
       label: p.label,
+      machineType: p.machine_type,
       location: p.location,
       city: p.city,
       active: p.active === 1,
@@ -507,16 +538,20 @@ async function handleAdminPodCreate(request, env) {
   const existing = await env.DB.prepare('SELECT pod_id FROM pods WHERE pod_id = ?1')
     .bind(podId).first()
 
+  // Which questions this machine asks follows from its type.
+  const machineType = MACHINE_TYPE_VALUES.includes(body.machineType) ? body.machineType : 'snacks'
+
   await env.DB.prepare(
-    `INSERT INTO pods (pod_id, label, location, city) VALUES (?1, ?2, ?3, ?4)
+    `INSERT INTO pods (pod_id, label, location, city, machine_type) VALUES (?1, ?2, ?3, ?4, ?5)
      ON CONFLICT(pod_id) DO UPDATE SET
-       label = excluded.label, location = excluded.location, city = excluded.city`
-  ).bind(podId, label, location, city).run()
+       label = excluded.label, location = excluded.location, city = excluded.city,
+       machine_type = excluded.machine_type`
+  ).bind(podId, label, location, city, machineType).run()
 
   return json({
     ok: true,
     updated: Boolean(existing),
-    pod: { podId, label, location, city, active: true, url: await podUrl(env, podId) },
+    pod: { podId, label, location, city, machineType, active: true, url: await podUrl(env, podId) },
   })
 }
 
@@ -552,11 +587,15 @@ async function handleAdminPodEdit(request, env, podId) {
   const location = cleanText(body.location, 120)
   const city = cleanText(body.city, 60)
 
-  await env.DB.prepare(
-    'UPDATE pods SET label = ?2, location = ?3, city = ?4 WHERE pod_id = ?1'
-  ).bind(podId, label, location, city).run()
+  const machineType = MACHINE_TYPE_VALUES.includes(body.machineType) ? body.machineType : null
 
-  return json({ ok: true, pod: { podId, label, location, city } })
+  await env.DB.prepare(
+    `UPDATE pods SET label = ?2, location = ?3, city = ?4,
+            machine_type = COALESCE(?5, machine_type)
+      WHERE pod_id = ?1`
+  ).bind(podId, label, location, city, machineType).run()
+
+  return json({ ok: true, pod: { podId, label, location, city, machineType } })
 }
 
 async function handleAdminPodToggle(request, env, podId) {
@@ -861,6 +900,20 @@ export default {
         if (cannedMatch && request.method === 'DELETE') {
           return await handleCannedDelete(env, json, cannedMatch[1])
         }
+        if (pathname === '/api/admin/questions' && request.method === 'GET') {
+          return await handleQuestionsList(env, json)
+        }
+        if (pathname === '/api/admin/questions' && request.method === 'POST') {
+          return await handleQuestionSave(request, env, json, null)
+        }
+        const qEditMatch = pathname.match(/^\/api\/admin\/questions\/([\w-]+)$/)
+        if (qEditMatch && request.method === 'PATCH') {
+          return await handleQuestionSave(request, env, json, qEditMatch[1])
+        }
+        if (qEditMatch && request.method === 'DELETE') {
+          return await handleQuestionDelete(env, json, qEditMatch[1])
+        }
+
         if (pathname === '/api/admin/qr' && request.method === 'GET') {
           return await handleQrList(env, json)
         }

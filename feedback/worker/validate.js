@@ -114,7 +114,7 @@ function cleanAmount(rupees) {
  * Everything not explicitly whitelisted here is dropped — the payload the
  * client sends is treated as a suggestion, never as truth.
  */
-export function validateSubmission(payload) {
+export function validateSubmission(payload, context = {}) {
   const errors = []
   if (!payload || typeof payload !== 'object') {
     return { ok: false, errors: ['Malformed request body.'] }
@@ -127,8 +127,8 @@ export function validateSubmission(payload) {
 
   // Fields shared by both tabs
   const comment      = cleanText(payload.comment, LIMITS.comment)
-  const productText  = cleanText(payload.productText, LIMITS.productText)
-  const productCat   = pickEnum(payload.productCategory, CATEGORY_SET)
+  const productText  = context.mapped?.product_text ?? cleanText(payload.productText, LIMITS.productText)
+  const productCat   = context.mapped?.product_category ?? pickEnum(payload.productCategory, CATEGORY_SET)
   const contactEmail = cleanEmail(payload.contactEmail)
   const contactPhone = cleanPhone(payload.contactPhone)
 
@@ -183,15 +183,17 @@ export function validateSubmission(payload) {
   }
 
   if (kind === 'complaint') {
-    base.issue_type = pickEnum(payload.issueType, ISSUE_SET)
-    if (!base.issue_type) errors.push('Please tell us what went wrong.')
-
-    base.occurred_when = pickEnum(payload.occurredWhen, WHEN_SET)
-    if (!base.occurred_when) errors.push('Please tell us when this happened.')
+    // What went wrong and when are ordinary questions now, answered against
+    // the machine's own set and handed in through `mapped`. This function no
+    // longer decides which issue types exist -- that moved to the database.
+    base.issue_type = context.mapped?.issue_type ?? null
+    base.occurred_when = context.mapped?.occurred_when ?? null
 
     base.refund_requested = payload.refundRequested ? 1 : 0
 
-    if (PAYMENT_ISSUES.includes(base.issue_type)) {
+    // Whether to keep an amount is a property of the option they chose, passed
+    // in, rather than a hardcoded list here.
+    if (context.paymentIssue) {
       base.amount_paise = cleanAmount(payload.amount)
       base.payment_ref = cleanText(payload.paymentRef, LIMITS.paymentRef)
     }
@@ -209,20 +211,18 @@ export function validateSubmission(payload) {
   }
 
   if (kind === 'feedback') {
+    // The rating stays here rather than becoming a question: it is the one
+    // answer every report has, the only one that averages across machine
+    // types, and the thing the dashboard counts.
     const rating = Number.parseInt(payload.rating, 10)
     base.rating = Number.isInteger(rating) && rating >= 1 && rating <= 5 ? rating : null
     if (!base.rating) errors.push('Please tap a rating.')
 
-    // De-duplicate and whitelist the multi-select, then store as JSON.
-    const wanted = Array.isArray(payload.wantedCategories) ? payload.wantedCategories : []
-    const cleanWanted = [...new Set(
-      wanted.filter((v) => typeof v === 'string' && CATEGORY_SET.has(v))
-    )].slice(0, PRODUCT_CATEGORIES.length)
-    base.wanted_categories = cleanWanted.length ? JSON.stringify(cleanWanted) : null
-
-    base.wanted_text = cleanText(payload.wantedText, LIMITS.wantedText)
-    base.price_feel  = pickEnum(payload.priceFeel, PRICE_SET)
-    base.usage_freq  = pickEnum(payload.usageFreq, USAGE_SET)
+    // Everything else a feedback form asks now arrives through `mapped`.
+    base.wanted_categories = context.mapped?.wanted_categories ?? null
+    base.wanted_text       = context.mapped?.wanted_text ?? null
+    base.price_feel        = context.mapped?.price_feel ?? null
+    base.usage_freq        = context.mapped?.usage_freq ?? null
 
     base.notify_opt_in = payload.notifyOptIn && contactEmail ? 1 : 0
     if (payload.notifyOptIn && !contactEmail) {

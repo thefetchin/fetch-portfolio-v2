@@ -340,3 +340,17 @@
   background: var(--ink-50, #f8fafc);
   padding: 0.05rem 0.3rem; border-radius: 4px;
 }
+
+.pod-kind { font-size: 0.74rem; color: var(--ink-500); margin-top: 0.15rem; }
+.pod-edit select {
+  padding: 0.55rem 0.7rem;
+  border: 1.5px solid var(--ink-200);
+  border-radius: var(--radius-md);
+  font-size: 16px; background: var(--ink-0); color: var(--ink-900);
+}
+.pod-form-grid select {
+  padding: 0.7rem 0.85rem;
+  border: 1.5px solid var(--ink-200);
+  border-radius: var(--radius-md);
+  font-size: 16px; background: var(--ink-0); color: var(--ink-900);
+}

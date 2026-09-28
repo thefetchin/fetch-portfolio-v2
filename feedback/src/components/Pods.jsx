@@ -110,6 +110,8 @@ export default function Pods() {
   const [location, setLocation] = useState('')
   const [city, setCity] = useState('')
   const [label, setLabel] = useState('')
+  // Decides which questions this machine's QR will ask.
+  const [machineType, setMachineType] = useState('snacks')
   const newestRef = useRef(null)
 
   const load = useCallback(async () => {
@@ -134,7 +136,7 @@ export default function Pods() {
       const res = await fetch('/api/admin/pods', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ podId, location, city, label }),
+        body: JSON.stringify({ podId, location, city, label, machineType }),
       })
       const data = await res.json()
       if (!res.ok) {
@@ -177,7 +179,10 @@ export default function Pods() {
 
   const startEdit = (pod) => {
     setEditing(pod.podId)
-    setDraft({ label: pod.label || '', location: pod.location || '', city: pod.city || '' })
+    setDraft({
+      label: pod.label || '', location: pod.location || '', city: pod.city || '',
+      machineType: pod.machineType || 'snacks',
+    })
     setError(null)
   }
 
@@ -262,6 +267,13 @@ export default function Pods() {
             />
           </label>
           <label>
+            <span>Machine type</span>
+            <select value={machineType} onChange={(e) => setMachineType(e.target.value)}>
+              <option value="snacks">Snacks &amp; drinks</option>
+              <option value="coffee">Coffee</option>
+            </select>
+          </label>
+          <label>
             <span>Display name</span>
             <input
               value={label}
@@ -300,6 +312,9 @@ export default function Pods() {
               <div className="pod-label">{pod.label}</div>
               <div className="pod-loc">
                 {pod.location}{pod.city ? ` · ${pod.city}` : ''}
+              </div>
+              <div className="pod-kind">
+                {pod.machineType === 'coffee' ? '☕ Coffee' : '🍫 Snacks & drinks'}
               </div>
               <div className="pod-stats">
                 {pod.submissionCount} submission{pod.submissionCount === 1 ? '' : 's'}
@@ -358,6 +373,20 @@ export default function Pods() {
                       value={draft.city} maxLength={60}
                       onChange={(e) => setDraft({ ...draft, city: e.target.value })}
                     />
+                  </label>
+                  <label>
+                    <span>Machine type</span>
+                    <select
+                      value={draft.machineType || 'snacks'}
+                      onChange={(e) => setDraft({ ...draft, machineType: e.target.value })}
+                    >
+                      <option value="snacks">Snacks &amp; drinks</option>
+                      <option value="coffee">Coffee</option>
+                    </select>
+                    <span className="pod-edit-note">
+                      Changes which questions this machine&apos;s QR asks. The QR itself
+                      is unaffected.
+                    </span>
                   </label>
                   <p className="pod-edit-note">
                     These appear on the feedback page and in the WhatsApp refill

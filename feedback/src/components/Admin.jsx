@@ -12,6 +12,7 @@ import DebitNotes from './DebitNotes'
 import Inventory from './Inventory'
 import Whatsapp from './Whatsapp'
 import QrCodes from './QrCodes'
+import Questions from './Questions'
 import './Admin.css'
 
 const labelMap = (options) =>
@@ -299,6 +300,14 @@ export default function Admin() {
         </button>
         <button
           type="button" role="tab"
+          aria-selected={view === 'questions'}
+          className={`admin-tab ${view === 'questions' ? 'is-active' : ''}`}
+          onClick={() => setView('questions')}
+        >
+          Questions
+        </button>
+        <button
+          type="button" role="tab"
           aria-selected={view === 'qr'}
           className={`admin-tab ${view === 'qr' ? 'is-active' : ''}`}
           onClick={() => setView('qr')}
@@ -332,6 +341,8 @@ export default function Admin() {
       {view === 'whatsapp' && <Whatsapp />}
 
       {view === 'qr' && <QrCodes />}
+
+      {view === 'questions' && <Questions />}
 
       {view === 'submissions' && stats && (
         <div className="stats">
