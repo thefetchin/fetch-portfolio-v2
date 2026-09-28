@@ -289,7 +289,11 @@ export default function Questions() {
             <span>They must answer this before continuing</span>
           </label>
 
-          <div className="qz-actions">
+          {/* Its own class, not qz-actions: that one styles the plain-text
+              Edit/Remove links in the list, and `.qz-actions button` beats
+              `.qz-save` on specificity -- which left Save as white text on a
+              white card. Invisible, and still clickable, which is worse. */}
+          <div className="qz-formactions">
             <button type="button" className="qz-save" onClick={save} disabled={busy || !editing.title.trim()}>
               {busy ? 'Saving…' : 'Save'}
             </button>
