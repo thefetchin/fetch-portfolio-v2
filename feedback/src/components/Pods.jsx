@@ -112,6 +112,8 @@ export default function Pods() {
   const [label, setLabel] = useState('')
   // Decides which questions this machine's QR will ask.
   const [machineType, setMachineType] = useState('snacks')
+  // Whether this machine's form offers refill notifications at all.
+  const [refillOptIn, setRefillOptIn] = useState(true)
   const newestRef = useRef(null)
 
   const load = useCallback(async () => {
@@ -136,7 +138,7 @@ export default function Pods() {
       const res = await fetch('/api/admin/pods', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ podId, location, city, label, machineType }),
+        body: JSON.stringify({ podId, location, city, label, machineType, refillOptIn }),
       })
       const data = await res.json()
       if (!res.ok) {
@@ -182,6 +184,7 @@ export default function Pods() {
     setDraft({
       label: pod.label || '', location: pod.location || '', city: pod.city || '',
       machineType: pod.machineType || 'snacks',
+      refillOptIn: pod.refillOptIn !== false,
     })
     setError(null)
   }
@@ -273,6 +276,19 @@ export default function Pods() {
               <option value="coffee">Coffee</option>
             </select>
           </label>
+          <label className="pod-check">
+            <input
+              type="checkbox" checked={refillOptIn}
+              onChange={(e) => setRefillOptIn(e.target.checked)}
+            />
+            <span>
+              Offer refill notifications on this machine&apos;s form
+              <em>
+                Adds the WhatsApp opt-in to the last step. Leave it off for a
+                machine on a fixed round, where there is nothing to announce.
+              </em>
+            </span>
+          </label>
           <label>
             <span>Display name</span>
             <input
@@ -315,6 +331,9 @@ export default function Pods() {
               </div>
               <div className="pod-kind">
                 {pod.machineType === 'coffee' ? '☕ Coffee' : '🍫 Snacks & drinks'}
+                {pod.refillOptIn === false && (
+                  <span className="pod-kind-off">refill opt-in off</span>
+                )}
               </div>
               <div className="pod-stats">
                 {pod.submissionCount} submission{pod.submissionCount === 1 ? '' : 's'}
@@ -386,6 +405,20 @@ export default function Pods() {
                     <span className="pod-edit-note">
                       Changes which questions this machine&apos;s QR asks. The QR itself
                       is unaffected.
+                    </span>
+                  </label>
+                  <label className="pod-check">
+                    <input
+                      type="checkbox" checked={draft.refillOptIn !== false}
+                      onChange={(e) => setDraft({ ...draft, refillOptIn: e.target.checked })}
+                    />
+                    <span>
+                      Offer refill notifications on this machine&apos;s form
+                      <em>
+                        Turning it off hides the opt-in from now on. It does not
+                        unsubscribe anyone who has already said yes — take those
+                        off the list in the WhatsApp section.
+                      </em>
                     </span>
                   </label>
                   <p className="pod-edit-note">

@@ -45,6 +45,7 @@
     "db:machine-types": "wrangler d1 execute fetch-feedback --remote --file=./migrations/020_machine_types.sql",
     "db:seed-questions": "wrangler d1 execute fetch-feedback --remote --file=./migrations/021_seed_questions.sql",
   "db:premix": "wrangler d1 execute fetch-feedback --remote --file=./migrations/022_premix_question.sql",
+  "db:refill-optin": "wrangler d1 execute fetch-feedback --remote --file=./migrations/023_pod_refill_optin.sql",
     "test:vnetra-sheet": "node tests/vnetra-sheet-unit.mjs",
     "db:vnetra-exports": "wrangler d1 execute fetch-feedback --remote --file=./migrations/008_vnetra_exports.sql",
     "db:vnetra-exports:local": "wrangler d1 execute fetch-feedback --local --file=./migrations/008_vnetra_exports.sql",

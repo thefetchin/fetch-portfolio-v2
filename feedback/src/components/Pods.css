@@ -354,3 +354,64 @@
   border-radius: var(--radius-md);
   font-size: 16px; background: var(--ink-0); color: var(--ink-900);
 }
+
+/* A checkbox whose label carries a line of explanation under it — used where
+   the consequence of the setting is not obvious from its name.
+   It spans the whole row of the field grid: as one column its sentence
+   wrapped into a narrow strip and pushed the next field out of line. */
+.pod-check {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: flex-start;
+  gap: 0.55rem;
+  cursor: pointer;
+  max-width: 58ch;
+}
+/* Both of these undo a rule aimed at text fields that also lands on a tick
+   box: `.pod-form-grid label` stacks its children in a column, which put the
+   sentence under the box instead of beside it, and `.pod-form-grid input`
+   sets appearance:none, which erases the tick itself -- a box that is checked
+   but looks empty. Higher specificity, so the checkbox wins in both places. */
+.pod-form-grid .pod-check,
+.pod-edit .pod-check {
+  flex-direction: row;
+  align-items: flex-start;
+  gap: 0.55rem;
+}
+
+.pod-form-grid .pod-check input[type="checkbox"],
+.pod-edit .pod-check input[type="checkbox"],
+.pod-check input[type="checkbox"] {
+  -webkit-appearance: checkbox;
+  appearance: checkbox;
+  width: 17px;
+  min-width: 17px;
+  height: 17px;
+  padding: 0;
+  margin-top: 0.15rem;
+  border-radius: 4px;
+  accent-color: var(--brand-600);
+}
+.pod-check > span {
+  display: flex; flex-direction: column; gap: 0.2rem;
+  font-size: 0.88rem; font-weight: 600; color: var(--ink-800, var(--ink-700));
+}
+.pod-check em {
+  font-style: normal;
+  font-weight: 400;
+  font-size: 0.76rem;
+  line-height: 1.45;
+  color: var(--ink-500);
+}
+
+/* Says a Pod asks nothing about refills, so it is visible on the card rather
+   than only inside the editor. */
+.pod-kind-off {
+  margin-left: 0.4rem;
+  padding: 0.05rem 0.4rem;
+  border-radius: 999px;
+  background: var(--ink-100);
+  color: var(--ink-500);
+  font-size: 0.68rem;
+  font-weight: 600;
+}

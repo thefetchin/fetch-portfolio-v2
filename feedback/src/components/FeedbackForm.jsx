@@ -259,7 +259,7 @@ export default function FeedbackForm({ podId, podToken }) {
           website: honeypot,
           dwellMs: Date.now() - mountedAt.current,
           amount: amount || null, paymentRef, refundRequested,
-          rating, whatsappOptIn,
+          rating, whatsappOptIn: pod.refillOptIn !== false && whatsappOptIn,
           // Keyed by question, because the questions are data now.
           answers,
           comment, contactPhone,
@@ -539,13 +539,19 @@ export default function FeedbackForm({ podId, podToken }) {
                     That needs to be 10 digits, starting 6 to 9.
                   </p>
                 )}
-                <label className="fx-check">
-                  <input
-                    type="checkbox" checked={whatsappOptIn}
-                    onChange={(e) => setWhatsappOptIn(e.target.checked)}
-                  />
-                  <span>{WA_CONSENT_TEXT}</span>
-                </label>
+                {/* Offered per machine. A Pod refilled on a fixed round has
+                    nothing worth announcing, and asking anyway would collect
+                    consent for a message nobody ever sends. The number box
+                    stays either way -- it is how we reply to them. */}
+                {pod.refillOptIn !== false && (
+                  <label className="fx-check">
+                    <input
+                      type="checkbox" checked={whatsappOptIn}
+                      onChange={(e) => setWhatsappOptIn(e.target.checked)}
+                    />
+                    <span>{WA_CONSENT_TEXT}</span>
+                  </label>
+                )}
                 {whatsappOptIn && (
                   /*
                     Do not promise "reply STOP" here until something actually

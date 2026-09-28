@@ -149,7 +149,8 @@ async function handlePodLookup(request, env, podId) {
   }
 
   const pod = await env.DB.prepare(
-    'SELECT pod_id, label, location, city, active, machine_type FROM pods WHERE pod_id = ?1'
+    `SELECT pod_id, label, location, city, active, machine_type, refill_optin
+       FROM pods WHERE pod_id = ?1`
   ).bind(podId).first()
 
   if (!pod) {
@@ -173,6 +174,7 @@ async function handlePodLookup(request, env, podId) {
       location: pod.location,
       city: pod.city,
       machineType: pod.machine_type,
+      refillOptIn: pod.refill_optin === 1,
     },
     questions: { feedback, complaint },
   })
@@ -198,7 +200,7 @@ async function handleSubmit(request, env) {
   }
 
   const pod = await env.DB.prepare(
-    'SELECT pod_id, active, machine_type FROM pods WHERE pod_id = ?1'
+    'SELECT pod_id, active, machine_type, refill_optin FROM pods WHERE pod_id = ?1'
   ).bind(podId).first()
   if (!pod) return json({ error: 'unknown_pod', message: 'We could not find that Pod.' }, 404)
   if (!pod.active) return json({ error: 'inactive_pod', message: 'This Pod is retired.' }, 410)
@@ -280,7 +282,12 @@ async function handleSubmit(request, env) {
       v.answers
     ))
 
-    if (v.whatsapp_opt_in) {
+    // A Pod with the offer switched off records no consent, whatever the
+    // payload says. The client is told whether to show the box, but consent
+    // has to mean the wording was actually on the screen -- and here it was
+    // not. Silent rather than an error: they asked for nothing, and they get
+    // nothing, which is the outcome either way.
+    if (v.whatsapp_opt_in && pod.refill_optin === 1) {
       // Ticking the box again at the same Pod refreshes the existing consent
       // rather than adding a second row -- including lifting an earlier
       // unsubscribe, which is a fresh, explicit opt-in and nothing else.
@@ -477,7 +484,8 @@ async function podUrl(env, podId) {
 
 async function handleAdminPodsList(request, env) {
   const rows = await env.DB.prepare(
-    `SELECT p.pod_id, p.label, p.location, p.city, p.active, p.machine_type, p.created_at,
+    `SELECT p.pod_id, p.label, p.location, p.city, p.active, p.machine_type,
+            p.refill_optin, p.created_at,
             (SELECT COUNT(*) FROM submissions s WHERE s.pod_id = p.pod_id) AS submission_count
        FROM pods p
       ORDER BY p.created_at DESC`
@@ -488,6 +496,7 @@ async function handleAdminPodsList(request, env) {
       podId: p.pod_id,
       label: p.label,
       machineType: p.machine_type,
+      refillOptIn: p.refill_optin === 1,
       location: p.location,
       city: p.city,
       active: p.active === 1,
@@ -540,18 +549,28 @@ async function handleAdminPodCreate(request, env) {
 
   // Which questions this machine asks follows from its type.
   const machineType = MACHINE_TYPE_VALUES.includes(body.machineType) ? body.machineType : 'snacks'
+  // Offered unless they say otherwise, which is what every Pod did before
+  // this was a choice.
+  const refillOptIn = body.refillOptIn === false ? 0 : 1
 
   await env.DB.prepare(
-    `INSERT INTO pods (pod_id, label, location, city, machine_type) VALUES (?1, ?2, ?3, ?4, ?5)
+    `INSERT INTO pods (pod_id, label, location, city, machine_type, refill_optin)
+     VALUES (?1, ?2, ?3, ?4, ?5, ?6)
      ON CONFLICT(pod_id) DO UPDATE SET
        label = excluded.label, location = excluded.location, city = excluded.city,
-       machine_type = excluded.machine_type`
-  ).bind(podId, label, location, city, machineType).run()
+       machine_type = excluded.machine_type,
+       refill_optin = excluded.refill_optin`
+  ).bind(podId, label, location, city, machineType, refillOptIn).run()
 
   return json({
     ok: true,
     updated: Boolean(existing),
-    pod: { podId, label, location, city, machineType, active: true, url: await podUrl(env, podId) },
+    pod: {
+      podId, label, location, city, machineType,
+      refillOptIn: refillOptIn === 1,
+      active: true,
+      url: await podUrl(env, podId),
+    },
   })
 }
 
@@ -588,12 +607,16 @@ async function handleAdminPodEdit(request, env, podId) {
   const city = cleanText(body.city, 60)
 
   const machineType = MACHINE_TYPE_VALUES.includes(body.machineType) ? body.machineType : null
+  // Only touched when the field is present, so a caller that does not know
+  // about this setting cannot switch it off by omission.
+  const refillOptIn = typeof body.refillOptIn === 'boolean' ? (body.refillOptIn ? 1 : 0) : null
 
   await env.DB.prepare(
     `UPDATE pods SET label = ?2, location = ?3, city = ?4,
-            machine_type = COALESCE(?5, machine_type)
+            machine_type = COALESCE(?5, machine_type),
+            refill_optin = COALESCE(?6, refill_optin)
       WHERE pod_id = ?1`
-  ).bind(podId, label, location, city, machineType).run()
+  ).bind(podId, label, location, city, machineType, refillOptIn).run()
 
   return json({ ok: true, pod: { podId, label, location, city, machineType } })
 }
