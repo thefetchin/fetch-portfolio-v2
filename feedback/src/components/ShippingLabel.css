@@ -1,0 +1,286 @@
+/*
+ * The label sheet.
+ *
+ * Sized in millimetres so the preview and the print are one object. Everything
+ * inside scales from --lbl-base, which is derived from the page height: an A6
+ * and an A4 then carry the same design rather than the same point sizes, and a
+ * thermal label does not come out with a headline that fills a third of it.
+ */
+
+.lbl-sheet {
+  --lbl-base: calc(var(--lbl-h) / 60);
+  --lbl-pad: calc(var(--lbl-h) / 28);
+  --lbl-rule: #111;
+  --lbl-soft: #5b6470;
+
+  width: var(--lbl-w);
+  height: var(--lbl-h);
+  box-sizing: border-box;
+  padding: var(--lbl-pad);
+  background: #fff;
+  color: #111;
+  font-family: Inter, system-ui, -apple-system, sans-serif;
+  font-size: var(--lbl-base);
+  line-height: 1.3;
+  overflow: hidden;
+}
+
+/* Corner marks for anyone trimming a big sheet down to the box. */
+.lbl-sheet.has-marks .lbl-inner {
+  outline: 0.3mm dashed #b8c0cc;
+  outline-offset: calc(var(--lbl-pad) / -2);
+}
+
+.lbl-inner {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--lbl-base) * 0.7);
+}
+
+/* ------------------------------------------------------------- header -- */
+
+.lbl-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: calc(var(--lbl-base) * 1.2);
+  padding-bottom: calc(var(--lbl-base) * 0.6);
+  border-bottom: 0.6mm solid var(--lbl-rule);
+}
+
+.lbl-kicker {
+  font-size: calc(var(--lbl-base) * 0.72);
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--lbl-soft);
+}
+
+.lbl-title {
+  margin: calc(var(--lbl-base) * 0.15) 0 0;
+  font-size: calc(var(--lbl-base) * 1.55);
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  line-height: 1.12;
+}
+
+.lbl-ref-wrap {
+  display: flex;
+  align-items: center;
+  gap: calc(var(--lbl-base) * 0.8);
+  flex-shrink: 0;
+}
+
+.lbl-ref { text-align: right; }
+
+.lbl-ref-value {
+  display: block;
+  font-size: calc(var(--lbl-base) * 1.25);
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
+}
+
+.lbl-qr {
+  width: calc(var(--lbl-base) * 4.6);
+  height: calc(var(--lbl-base) * 4.6);
+  image-rendering: pixelated;
+}
+
+/* ----------------------------------------------------------- addresses -- */
+
+.lbl-parties {
+  display: grid;
+  grid-template-columns: 1fr 1.25fr;
+  gap: calc(var(--lbl-base) * 1.1);
+  align-items: stretch;
+}
+
+.lbl-party {
+  border: 0.35mm solid #c9cfd8;
+  border-radius: 1.2mm;
+  padding: calc(var(--lbl-base) * 0.7);
+  min-width: 0;
+}
+
+/* The consignee is what a courier reads across a warehouse, so it gets the
+   ink: heavier border, larger name. */
+.lbl-party:last-child { border-color: var(--lbl-rule); border-width: 0.6mm; }
+.lbl-party:last-child .lbl-party-name { font-size: calc(var(--lbl-base) * 1.5); }
+.lbl-party:last-child .lbl-party-lines { font-size: calc(var(--lbl-base) * 1.05); }
+
+.lbl-party-head {
+  font-size: calc(var(--lbl-base) * 0.68);
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--lbl-soft);
+  margin-bottom: calc(var(--lbl-base) * 0.35);
+}
+
+.lbl-party-name {
+  font-size: calc(var(--lbl-base) * 1.1);
+  font-weight: 800;
+  line-height: 1.18;
+}
+
+.lbl-party-attn {
+  font-size: calc(var(--lbl-base) * 0.85);
+  font-weight: 600;
+  color: var(--lbl-soft);
+}
+
+.lbl-party-lines {
+  margin-top: calc(var(--lbl-base) * 0.3);
+  font-size: calc(var(--lbl-base) * 0.92);
+}
+
+.lbl-party-contact,
+.lbl-party-gstin {
+  margin-top: calc(var(--lbl-base) * 0.3);
+  font-size: calc(var(--lbl-base) * 0.8);
+  color: var(--lbl-soft);
+}
+
+.lbl-party-gstin { font-variant-numeric: tabular-nums; }
+
+/* ------------------------------------------------------------ shipment -- */
+
+.lbl-shipment {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: calc(var(--lbl-base) * 0.5) calc(var(--lbl-base) * 0.9);
+  padding: calc(var(--lbl-base) * 0.6) calc(var(--lbl-base) * 0.7);
+  border: 0.35mm solid #c9cfd8;
+  border-radius: 1.2mm;
+  background: #f6f8fa;
+}
+
+.lbl-field { min-width: 0; }
+
+.lbl-field-label {
+  display: block;
+  font-size: calc(var(--lbl-base) * 0.64);
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--lbl-soft);
+}
+
+.lbl-field-value {
+  display: block;
+  font-size: calc(var(--lbl-base) * 0.95);
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+/* --------------------------------------------------------------- items -- */
+
+.lbl-items {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: calc(var(--lbl-base) * 0.88);
+}
+
+.lbl-items th {
+  text-align: left;
+  font-size: calc(var(--lbl-base) * 0.66);
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--lbl-soft);
+  border-bottom: 0.4mm solid var(--lbl-rule);
+  padding: 0 calc(var(--lbl-base) * 0.35) calc(var(--lbl-base) * 0.25);
+}
+
+.lbl-items td {
+  padding: calc(var(--lbl-base) * 0.3) calc(var(--lbl-base) * 0.35);
+  border-bottom: 0.2mm solid #dfe4ea;
+  vertical-align: top;
+}
+
+.lbl-col-n { width: calc(var(--lbl-base) * 1.6); color: var(--lbl-soft); }
+.lbl-col-num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+.lbl-items tfoot td {
+  border-bottom: none;
+  border-top: 0.4mm solid var(--lbl-rule);
+  font-weight: 800;
+  text-align: right;
+}
+
+.lbl-value-only {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  padding: calc(var(--lbl-base) * 0.5) calc(var(--lbl-base) * 0.7);
+  border: 0.35mm solid #c9cfd8;
+  border-radius: 1.2mm;
+}
+
+.lbl-value-big {
+  font-size: calc(var(--lbl-base) * 1.4);
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+
+/* -------------------------------------------------------------- bottom -- */
+
+/* Pushed to the foot of the sheet, so a short label does not leave the
+   declaration floating in the middle of the page. */
+.lbl-bottom {
+  margin-top: auto;
+  padding-top: calc(var(--lbl-base) * 0.5);
+  border-top: 0.35mm solid #c9cfd8;
+}
+
+.lbl-declaration {
+  margin: 0;
+  font-size: calc(var(--lbl-base) * 0.78);
+  line-height: 1.35;
+  color: #333;
+}
+
+.lbl-footer {
+  margin: calc(var(--lbl-base) * 0.35) 0 0;
+  font-size: calc(var(--lbl-base) * 0.8);
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--lbl-soft);
+}
+
+/* ------------------------------------------------------ narrow labels -- */
+/*
+ * Under ~120mm the sheet stacks rather than shrinks. The consignee comes
+ * first, because on a small label the delivery address should be the thing
+ * nearest the top, not the thing under our own address.
+ */
+
+.lbl-sheet.is-compact .lbl-parties {
+  display: flex;
+  flex-direction: column-reverse;
+  gap: calc(var(--lbl-base) * 0.6);
+}
+
+.lbl-sheet.is-compact .lbl-shipment {
+  grid-template-columns: repeat(2, 1fr);
+}
+
+.lbl-sheet.is-compact .lbl-top {
+  flex-direction: column;
+  align-items: stretch;
+  gap: calc(var(--lbl-base) * 0.5);
+}
+
+.lbl-sheet.is-compact .lbl-ref-wrap {
+  justify-content: space-between;
+}
+
+.lbl-sheet.is-compact .lbl-ref { text-align: left; }
+
+.lbl-sheet.is-compact .lbl-qr {
+  width: calc(var(--lbl-base) * 6);
+  height: calc(var(--lbl-base) * 6);
+}

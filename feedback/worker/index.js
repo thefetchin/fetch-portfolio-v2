@@ -7,6 +7,10 @@ import {
 import { beginIdempotent, maybePrune } from './idempotency.js'
 import { routeInventory } from './inv-routes.js'
 import {
+  handleShippingGet, handleShippingSettingsSave,
+  handleShippingAddressSave, handleShippingAddressDelete,
+} from './shipping.js'
+import {
   loadQuestions, validateAnswers, isPaymentIssue, MACHINE_TYPE_VALUES,
   handleQuestionsList, handleQuestionSave, handleQuestionDelete,
 } from './questions.js'
@@ -935,6 +939,24 @@ export default {
         }
         if (qEditMatch && request.method === 'DELETE') {
           return await handleQuestionDelete(env, json, qEditMatch[1])
+        }
+
+        // ---- shipping labels
+        if (pathname === '/api/admin/shipping' && request.method === 'GET') {
+          return await handleShippingGet(env, json)
+        }
+        if (pathname === '/api/admin/shipping/settings' && request.method === 'PUT') {
+          return await handleShippingSettingsSave(request, env, json, auth)
+        }
+        if (pathname === '/api/admin/shipping/addresses' && request.method === 'POST') {
+          return await handleShippingAddressSave(request, env, json, null)
+        }
+        const shipAddrMatch = pathname.match(/^\/api\/admin\/shipping\/addresses\/([\w-]+)$/)
+        if (shipAddrMatch && request.method === 'PATCH') {
+          return await handleShippingAddressSave(request, env, json, shipAddrMatch[1])
+        }
+        if (shipAddrMatch && request.method === 'DELETE') {
+          return await handleShippingAddressDelete(env, json, shipAddrMatch[1])
         }
 
         if (pathname === '/api/admin/qr' && request.method === 'GET') {
