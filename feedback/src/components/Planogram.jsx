@@ -66,6 +66,7 @@ export default function Planogram({ pods, products, run, say, oops, busy, loadRe
   const [search, setSearch] = useState('')
   const [page, setPage] = useState('A4 landscape')
   const [build, setBuild] = useState({ rows: 6, columns: 8, style: 'letter' })
+  const searchRef = useRef(null)
 
   const byId = useMemo(
     () => Object.fromEntries((products || []).map((p) => [p.id, p])),
@@ -93,6 +94,15 @@ export default function Planogram({ pods, products, run, say, oops, busy, loadRe
   // Only when the machine changes. Reloading for any other reason would
   // discard whatever is being edited.
   useEffect(() => { load(podId) }, [podId, load])
+
+  /* Opening a slot clears the previous search and puts the cursor in the box.
+     Carrying the last slot's search across looks like a filtered list nobody
+     asked for -- and the first thing anyone does here is type a product. */
+  useEffect(() => {
+    if (!selected) return
+    setSearch('')
+    searchRef.current?.focus()
+  }, [selected])
 
   const slots = plan?.slots || []
   const rows = useMemo(() => groupRows(slots), [slots])
@@ -476,42 +486,33 @@ export default function Planogram({ pods, products, run, say, oops, busy, loadRe
             </p>
           )}
 
-          <div className="pg-editor-row">
-            <label className="pg-field">
-              <span>Row</span>
-              <input
-                type="number" min="1" max="50" value={current.rowNumber ?? ''}
-                onChange={(e) => patchSlot(current.slotName, {
-                  rowNumber: e.target.value === '' ? null : Number(e.target.value),
-                })}
-              />
-            </label>
-            <label className="pg-field">
-              <span>Column</span>
-              <input
-                type="number" min="1" max="50" value={current.columnNumber ?? ''}
-                onChange={(e) => patchSlot(current.slotName, {
-                  columnNumber: e.target.value === '' ? null : Number(e.target.value),
-                })}
-              />
-            </label>
-            <label className="pg-field">
-              <span>Holds</span>
-              <input
-                type="number" min="0" max="999" value={current.capacity ?? ''}
-                onChange={(e) => patchSlot(current.slotName, {
-                  capacity: e.target.value === '' ? null : Number(e.target.value),
-                })}
-              />
-            </label>
-            <label className="pg-field pg-field--wide">
-              <span>Note for the refiller</span>
-              <input
-                value={current.note || ''} maxLength={80}
-                placeholder="Front row only — tall packs jam"
-                onChange={(e) => patchSlot(current.slotName, { note: e.target.value })}
-              />
-            </label>
+          <div className="pg-picker">
+            {/* Focused on opening: clicking a slot is almost always the
+                first half of "put something in this slot", so the cursor is
+                already where the next keystroke was going. */}
+            <input
+              ref={searchRef}
+              className="pg-search" value={search} placeholder={`Search products for slot ${current.slotName}…`}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+            <div className="pg-results">
+              {matches.map((p) => {
+                const already = current.choices.some((c) => c.productId === p.id)
+                return (
+                  <button
+                    key={p.id} type="button"
+                    className={`pg-result ${already ? 'is-in' : ''}`}
+                    disabled={already}
+                    onClick={() => addChoice(current.slotName, p.id)}
+                  >
+                    <Thumb product={p} />
+                    <span className="pg-result-name">{p.name}</span>
+                    <span className="pg-result-meta">{already ? 'added' : rupees(p.mrpPaise)}</span>
+                  </button>
+                )
+              })}
+              {!matches.length && <p className="inv-empty">Nothing matches that.</p>}
+            </div>
           </div>
 
           <div className="pg-choices">
@@ -549,29 +550,42 @@ export default function Planogram({ pods, products, run, say, oops, busy, loadRe
             ))}
           </div>
 
-          <div className="pg-picker">
-            <input
-              className="pg-search" value={search} placeholder="Search products to add…"
-              onChange={(e) => setSearch(e.target.value)}
-            />
-            <div className="pg-results">
-              {matches.map((p) => {
-                const already = current.choices.some((c) => c.productId === p.id)
-                return (
-                  <button
-                    key={p.id} type="button"
-                    className={`pg-result ${already ? 'is-in' : ''}`}
-                    disabled={already}
-                    onClick={() => addChoice(current.slotName, p.id)}
-                  >
-                    <Thumb product={p} />
-                    <span className="pg-result-name">{p.name}</span>
-                    <span className="pg-result-meta">{already ? 'added' : rupees(p.mrpPaise)}</span>
-                  </button>
-                )
-              })}
-              {!matches.length && <p className="inv-empty">Nothing matches that.</p>}
-            </div>
+          <div className="pg-editor-row">
+            <label className="pg-field">
+              <span>Row</span>
+              <input
+                type="number" min="1" max="50" value={current.rowNumber ?? ''}
+                onChange={(e) => patchSlot(current.slotName, {
+                  rowNumber: e.target.value === '' ? null : Number(e.target.value),
+                })}
+              />
+            </label>
+            <label className="pg-field">
+              <span>Column</span>
+              <input
+                type="number" min="1" max="50" value={current.columnNumber ?? ''}
+                onChange={(e) => patchSlot(current.slotName, {
+                  columnNumber: e.target.value === '' ? null : Number(e.target.value),
+                })}
+              />
+            </label>
+            <label className="pg-field">
+              <span>Holds</span>
+              <input
+                type="number" min="0" max="999" value={current.capacity ?? ''}
+                onChange={(e) => patchSlot(current.slotName, {
+                  capacity: e.target.value === '' ? null : Number(e.target.value),
+                })}
+              />
+            </label>
+            <label className="pg-field pg-field--wide">
+              <span>Note for the refiller</span>
+              <input
+                value={current.note || ''} maxLength={80}
+                placeholder="Front row only — tall packs jam"
+                onChange={(e) => patchSlot(current.slotName, { note: e.target.value })}
+              />
+            </label>
           </div>
         </div>
       )}
