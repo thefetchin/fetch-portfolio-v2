@@ -102,12 +102,68 @@
 
 /* ------------------------------------------------------------- editor -- */
 
+/*
+ * The slot opens over the machine rather than under it. Editing a slot is a
+ * short, focused job -- find a product, put it in, close -- and a panel below
+ * the grid meant being scrolled away from the cell just clicked, with the page
+ * changing height underneath.
+ */
+.pg-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.25rem;
+  background: rgba(15, 23, 42, 0.45);
+  backdrop-filter: blur(2px);
+  animation: pg-fade 0.12s ease-out;
+}
+
+@keyframes pg-fade { from { opacity: 0 } to { opacity: 1 } }
+@keyframes pg-rise { from { opacity: 0; transform: translateY(6px) scale(0.995) } to { opacity: 1 } }
+
+/* Motion is a nicety, not the only thing saying the dialog arrived: anyone
+   who has asked for less of it still gets the dialog, immediately. */
+@media (prefers-reduced-motion: reduce) {
+  .pg-overlay, .pg-editor { animation: none; }
+}
+
 .pg-editor {
+  width: min(840px, 100%);
+  /* Tall enough to work in, never taller than the window. The body scrolls,
+     the heading and the buttons do not. */
+  max-height: min(86vh, 860px);
+  display: flex; flex-direction: column;
   background: var(--ink-0);
   border: 1px solid var(--ink-100);
   border-radius: var(--radius-lg);
+  box-shadow: 0 10px 15px -3px rgba(16, 24, 40, 0.1), 0 24px 48px -12px rgba(16, 24, 40, 0.35);
   padding: 1rem;
+  gap: 0.8rem;
+  overflow: hidden;
+  animation: pg-rise 0.14s ease-out;
+}
+
+/* Everything except the heading scrolls together, so a long result list never
+   pushes the ranked choices out of reach. */
+.pg-editor > *:not(.pg-editor-head) { flex: 0 0 auto; }
+.pg-editor-head { flex: none; }
+
+.pg-editor-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
   display: flex; flex-direction: column; gap: 0.8rem;
+  padding-right: 0.15rem;
+}
+
+.pg-done {
+  background: var(--ink-900) !important;
+  border-color: var(--ink-900) !important;
+  color: var(--ink-0) !important;
+  font-weight: 700 !important;
 }
 
 .pg-editor-head { display: flex; align-items: center; justify-content: space-between; gap: 0.6rem; }
@@ -172,7 +228,7 @@
 
 .pg-results {
   display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-  gap: 0.35rem; max-height: 17rem; overflow-y: auto;
+  gap: 0.35rem; max-height: 15rem; overflow-y: auto;
 }
 
 .pg-result {
@@ -217,3 +273,27 @@
 }
 
 .pg-build-note { margin: 0; font-size: 0.76rem; color: var(--ink-500); }
+
+/* ---------------------------------------------------- narrow screens -- */
+/*
+ * On a phone the choice row ran out of width and broke the product name one
+ * word per line. The buttons move to their own line instead, which costs a
+ * few pixels of height and gives the name the whole of the first.
+ */
+@media (max-width: 560px) {
+  .pg-choice { flex-wrap: wrap; row-gap: 0.4rem; }
+  .pg-choice-main { flex: 1 1 6rem; }
+  .pg-choice-actions { flex: 1 0 100%; justify-content: flex-end; }
+
+  .pg-editor { padding: 0.8rem; }
+  .pg-editor-head h3 { font-size: 0.9rem; }
+  .pg-overlay { padding: 0.6rem; }
+
+  /* Row, column and capacity are three small numbers; side by side they fit
+     where "Note for the refiller" needs the width to itself. Aimed at the
+     number boxes specifically: `.pg-editor-row .pg-field input` also outranks
+     `.pg-field--wide input`, and squeezed the note into 4.5rem with it. */
+  .pg-editor-row .pg-field input[type="number"] { width: 4.5rem; }
+  .pg-editor-row .pg-field--wide { flex: 1 1 100%; }
+  .pg-editor-row .pg-field--wide input { width: 100%; }
+}

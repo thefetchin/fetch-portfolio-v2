@@ -95,6 +95,22 @@ export default function Planogram({ pods, products, run, say, oops, busy, loadRe
   // discard whatever is being edited.
   useEffect(() => { load(podId) }, [podId, load])
 
+  /* While the dialog is open the page behind it does not scroll, and Escape
+     closes it. Both are what anyone expects of a thing that covers the
+     screen, and their absence is what makes a hand-rolled dialog feel wrong
+     without anyone being able to say why. */
+  useEffect(() => {
+    if (!selected) return undefined
+    const onKey = (e) => { if (e.key === 'Escape') setSelected(null) }
+    const previous = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    window.addEventListener('keydown', onKey)
+    return () => {
+      document.body.style.overflow = previous
+      window.removeEventListener('keydown', onKey)
+    }
+  }, [selected])
+
   /* Opening a slot clears the previous search and puts the cursor in the box.
      Carrying the last slot's search across looks like a filtered list nobody
      asked for -- and the first thing anyone does here is type a product. */
@@ -467,16 +483,30 @@ export default function Planogram({ pods, products, run, say, oops, busy, loadRe
       )}
 
       {/* ------------------------------------------------------ the slot -- */}
+      {/* A dialog rather than a panel below the grid: the machine stays
+          visible behind it, nothing jumps, and you are not scrolled away from
+          the slot you just clicked. */}
       {current && (
-        <div className="pg-editor">
+        <div
+          className="pg-overlay"
+          onMouseDown={(e) => { if (e.target === e.currentTarget) setSelected(null) }}
+        >
+        <div
+          className="pg-editor"
+          role="dialog" aria-modal="true"
+          aria-label={`Slot ${current.slotName}`}
+        >
           <div className="pg-editor-head">
             <h3>Slot {current.slotName}</h3>
             <div className="pg-editor-actions">
               <button type="button" onClick={() => removeSlot(current.slotName)}>Remove slot</button>
-              <button type="button" onClick={() => setSelected(null)}>Close</button>
+              <button type="button" className="pg-done" onClick={() => setSelected(null)}>Done</button>
             </div>
           </div>
 
+          {/* The heading stays put; everything else scrolls, so a long list of
+              search results can never push the chosen products out of reach. */}
+          <div className="pg-editor-body">
           {current.actual && (
             <p className="pg-actual">
               The machine currently holds{' '}
@@ -492,8 +522,19 @@ export default function Planogram({ pods, products, run, say, oops, busy, loadRe
                 already where the next keystroke was going. */}
             <input
               ref={searchRef}
-              className="pg-search" value={search} placeholder={`Search products for slot ${current.slotName}…`}
+              className="pg-search" value={search}
+              placeholder={`Search products for slot ${current.slotName}…`}
               onChange={(e) => setSearch(e.target.value)}
+              onKeyDown={(e) => {
+                // Type two letters, press Enter, carry on. Reaching for the
+                // mouse for every one of eight slots is the slow part.
+                if (e.key !== 'Enter') return
+                e.preventDefault()
+                const next = matches.find(
+                  (p) => !current.choices.some((c) => c.productId === p.id)
+                )
+                if (next) { addChoice(current.slotName, next.id); setSearch('') }
+              }}
             />
             <div className="pg-results">
               {matches.map((p) => {
@@ -587,6 +628,8 @@ export default function Planogram({ pods, products, run, say, oops, busy, loadRe
               />
             </label>
           </div>
+          </div>
+        </div>
         </div>
       )}
     </div>
