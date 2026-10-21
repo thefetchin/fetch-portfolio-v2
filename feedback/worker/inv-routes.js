@@ -14,6 +14,9 @@ import {
   runDetail,
 } from './inv-outward.js'
 import { importVliteProducts, listVliteCatalogue } from './inv-catalogue.js'
+import {
+  handlePlanogramGet, handlePlanogramSave, handlePlanogramPull, handleProductImagesSync,
+} from './planogram.js'
 import { ingestVnetraSnapshot, compareWithVnetra } from './vnetra.js'
 import { generateExport, settleExport, listExports, exportImageScript } from './vnetra-export.js'
 import { importSalesChunk, salesReport, validateSupplierPrice } from './inv-sales.js'
@@ -101,7 +104,7 @@ async function listProducts(request, env, json) {
   const rows = await env.DB.prepare(
     `SELECT product_id, sku, name, category, hsn, uom, gst_bps, mrp_paise,
             shelf_life_days, min_shelf_life_days, barcode, vlite_product_id,
-            active, updated_at
+            image_url, active, updated_at
        FROM products
       ${activeOnly ? 'WHERE active = 1' : ''}
       ORDER BY name ASC`
@@ -121,6 +124,7 @@ async function listProducts(request, env, json) {
       minShelfLifeDays: p.min_shelf_life_days,
       barcode: p.barcode,
       vliteProductId: p.vlite_product_id,
+      imageUrl: p.image_url,
       active: p.active === 1,
     })),
   })
@@ -746,6 +750,27 @@ export async function routeInventory(request, env, auth, idem, json) {
 
   /** Guard for anything that manages stock. Refillers are read-only. */
   const stockOnly = () => requireRole(auth, ...STOCK_ROLES)
+
+  // ---- planogram ---------------------------------------------------------
+  //
+  // GET is open to refillers: the plan is the sheet they work from, and a
+  // refiller who cannot read it would have to be handed a printout by someone
+  // else every morning. Everything that changes a plan is stock-only.
+  const planoMatch = path.match(/^\/api\/inv\/planogram\/([\w:-]+)$/)
+  if (planoMatch && method === 'GET') return handlePlanogramGet(env, json, planoMatch[1])
+  if (planoMatch && method === 'PUT') {
+    const d = stockOnly(); if (d) { await idem.abandon(); return json(d, 403) }
+    return handlePlanogramSave(env, idem, json, planoMatch[1], validationError)
+  }
+  const planoPull = path.match(/^\/api\/inv\/planogram\/([\w:-]+)\/pull$/)
+  if (planoPull && method === 'POST') {
+    const d = stockOnly(); if (d) { await idem.abandon(); return json(d, 403) }
+    return handlePlanogramPull(env, idem, json, planoPull[1])
+  }
+  if (path === '/api/inv/product-images/sync' && method === 'POST') {
+    const d = stockOnly(); if (d) { await idem.abandon(); return json(d, 403) }
+    return handleProductImagesSync(env, idem, json)
+  }
 
   // ---- reference data ----------------------------------------------------
   if (path === '/api/inv/products' && method === 'GET')  return listProducts(request, env, json)

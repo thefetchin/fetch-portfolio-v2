@@ -11,6 +11,8 @@ import { printBatchStickers } from './batchStickerPrint.js'
 import { printRunSheet, printReturnBagLabel } from './runSheetPrint.js'
 import { buildXlsx } from '../../shared/xlsx.js'
 import './Inventory.css'
+import { api } from './invApi.js'
+import Planogram from './Planogram'
 
 /**
  * Inventory: what we have, what came in, and what goes out.
@@ -64,37 +66,12 @@ const today = () => new Date().toISOString().slice(0, 10)
 
 /* --------------------------------------------------------------- plumbing -- */
 
-/**
- * Every mutating call carries an Idempotency-Key. The Worker requires it, and
- * generating it per click rather than per attempt is the point: a double-tap or
- * a retry reuses the same key and cannot book the same stock twice.
- */
-async function api(path, { method = 'GET', body, key } = {}) {
-  const headers = {}
-  if (body !== undefined) headers['content-type'] = 'application/json'
-  if (method !== 'GET') headers['Idempotency-Key'] = key || crypto.randomUUID()
-
-  const res = await fetch(path, {
-    method,
-    headers,
-    body: body === undefined ? undefined : JSON.stringify(body),
-  })
-  const data = await res.json().catch(() => ({}))
-  if (!res.ok) {
-    const err = new Error(data.message || 'Something went wrong.')
-    err.code = data.error
-    err.errors = data.errors
-    err.status = res.status
-    throw err
-  }
-  return data
-}
-
 const SUBVIEWS = [
   { key: 'stock',   label: 'Stock' },
   { key: 'inward',  label: 'Receive' },
   { key: 'putaway', label: 'Put away' },
   { key: 'runs',    label: 'Runs' },
+  { key: 'planogram', label: 'Planogram' },
   { key: 'expiry',  label: 'Expiry' },
   { key: 'masters', label: 'Products & suppliers' },
   { key: 'prices', label: 'Supplier prices' },
@@ -173,6 +150,7 @@ export default function Inventory() {
       {view === 'inward'  && <InwardView {...shared} />}
       {view === 'putaway' && <PutawayView {...shared} />}
       {view === 'runs'    && <RunsView {...shared} />}
+      {view === 'planogram' && <Planogram {...shared} />}
       {view === 'expiry'  && <ExpiryView {...shared} />}
       {view === 'masters' && <MastersView {...shared} />}
       {view === 'prices' && <PricesView {...shared} />}

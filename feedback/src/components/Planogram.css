@@ -1,0 +1,190 @@
+/* The planogram editor: the machine's grid, and one slot at a time. */
+
+.pg { display: flex; flex-direction: column; gap: 0.9rem; }
+
+.pg-bar {
+  display: flex; flex-wrap: wrap; align-items: flex-end; gap: 0.6rem;
+}
+
+.pg-pick { display: flex; flex-direction: column; gap: 0.25rem; }
+.pg-pick > span { font-size: 0.72rem; font-weight: 700; color: var(--ink-700); }
+.pg-pick select {
+  padding: 0.5rem 0.7rem; border: 1.5px solid var(--ink-200);
+  border-radius: var(--radius-md); font: inherit; font-size: 0.88rem;
+  background: var(--ink-0); color: var(--ink-900); min-width: 15rem;
+}
+.pg-pick--sm select { min-width: 9rem; }
+
+.pg-save {
+  border: none; cursor: pointer; background: var(--ink-900); color: var(--ink-0);
+  padding: 0.55rem 1.1rem; border-radius: var(--radius-md);
+  font: inherit; font-size: 0.85rem; font-weight: 700;
+}
+.pg-save:disabled { opacity: 0.45; cursor: default; }
+
+.pg-stats { display: flex; flex-wrap: wrap; gap: 0.6rem; }
+
+/* ---------------------------------------------------------------- grid -- */
+
+.pg-grid { display: flex; flex-direction: column; gap: 0.7rem; }
+
+.pg-row { display: flex; flex-direction: column; gap: 0.35rem; }
+
+.pg-rowhead {
+  font-size: 0.68rem; font-weight: 800; letter-spacing: 0.1em;
+  text-transform: uppercase; color: var(--ink-500);
+}
+
+/* Auto-fit rather than a fixed count: a machine with four slots in a row and
+   one with eight both want to fill the width, and the editor does not know
+   which it is looking at until the layout arrives. */
+.pg-cells {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(118px, 1fr));
+  gap: 0.4rem;
+}
+
+.pg-cell {
+  display: flex; flex-direction: column; align-items: center; gap: 0.3rem;
+  padding: 0.5rem 0.4rem;
+  background: var(--ink-0);
+  border: 1.5px solid var(--ink-200);
+  border-radius: var(--radius-md);
+  cursor: pointer; text-align: center; min-width: 0;
+  font: inherit;
+}
+.pg-cell:hover { border-color: var(--brand-400); }
+.pg-cell.is-on { border-color: var(--ink-900); box-shadow: 0 0 0 1px var(--ink-900); }
+.pg-cell.is-empty { border-style: dashed; }
+
+.pg-cell-top {
+  display: flex; align-items: baseline; justify-content: space-between;
+  width: 100%; gap: 0.3rem;
+}
+.pg-slot { font-size: 0.86rem; font-weight: 800; }
+.pg-cap { font-size: 0.68rem; color: var(--ink-500); }
+
+.pg-cell-name {
+  font-size: 0.74rem; line-height: 1.25; font-weight: 600; color: var(--ink-800, var(--ink-700));
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+}
+.pg-cell.is-empty .pg-cell-name { color: var(--ink-500); font-weight: 500; }
+
+.pg-cell-alts { font-size: 0.66rem; color: var(--ink-500); }
+
+/* A plan that disagrees with the machine is usually the plan being out of
+   date, so it is flagged rather than corrected. */
+.pg-cell-flag {
+  font-size: 0.62rem; font-weight: 700; color: #92400e;
+  background: #fef3c7; border-radius: 999px; padding: 0.05rem 0.4rem;
+}
+
+.pg-addslot {
+  align-self: flex-start;
+  border: 1.5px dashed var(--ink-200); background: none; cursor: pointer;
+  border-radius: var(--radius-md); padding: 0.5rem 0.9rem;
+  font: inherit; font-size: 0.82rem; font-weight: 600; color: var(--ink-700);
+}
+
+/* -------------------------------------------------------------- thumbs -- */
+
+.pg-thumb {
+  object-fit: contain; background: #fff;
+  border: 1px solid var(--ink-100); border-radius: 4px;
+}
+.pg-thumb--sm { width: 48px; height: 48px; }
+.pg-thumb.is-empty { border-style: dashed; background: transparent; }
+.pg-thumb.is-none {
+  display: flex; align-items: center; justify-content: center;
+  font-size: 0.56rem; color: var(--ink-400, var(--ink-500));
+  border-style: dashed; text-align: center;
+}
+
+/* ------------------------------------------------------------- editor -- */
+
+.pg-editor {
+  background: var(--ink-0);
+  border: 1px solid var(--ink-100);
+  border-radius: var(--radius-lg);
+  padding: 1rem;
+  display: flex; flex-direction: column; gap: 0.8rem;
+}
+
+.pg-editor-head { display: flex; align-items: center; justify-content: space-between; gap: 0.6rem; }
+.pg-editor-head h3 { font-size: 0.98rem; font-weight: 800; margin: 0; }
+
+.pg-editor-actions { display: flex; gap: 0.5rem; }
+.pg-editor-actions button,
+.pg-choice-actions button {
+  border: 1.5px solid var(--ink-200); background: var(--ink-0); cursor: pointer;
+  border-radius: var(--radius-md); padding: 0.35rem 0.7rem;
+  font: inherit; font-size: 0.78rem; font-weight: 600; color: var(--ink-700);
+}
+.pg-choice-actions button:disabled { opacity: 0.4; cursor: default; }
+
+.pg-actual {
+  margin: 0; font-size: 0.8rem; color: var(--ink-600, var(--ink-500));
+  background: var(--ink-50, #f8fafc); border-radius: var(--radius-md);
+  padding: 0.45rem 0.6rem;
+}
+
+.pg-editor-row { display: flex; flex-wrap: wrap; gap: 0.6rem; }
+.pg-field { display: flex; flex-direction: column; gap: 0.25rem; }
+.pg-field > span { font-size: 0.7rem; font-weight: 700; color: var(--ink-700); }
+.pg-field input {
+  padding: 0.45rem 0.6rem; border: 1.5px solid var(--ink-200);
+  border-radius: var(--radius-md); font: inherit; font-size: 0.85rem;
+  width: 6rem; background: var(--ink-0); color: var(--ink-900);
+}
+.pg-field--wide { flex: 1 1 18rem; }
+.pg-field--wide input { width: 100%; }
+
+.pg-choices { display: flex; flex-direction: column; gap: 0.4rem; }
+.pg-choices-head { font-size: 0.76rem; color: var(--ink-500); line-height: 1.45; max-width: 60ch; }
+
+.pg-choice {
+  display: flex; align-items: center; gap: 0.6rem;
+  padding: 0.4rem 0.5rem;
+  border: 1px solid var(--ink-100); border-radius: var(--radius-md);
+}
+.pg-choice.is-off { opacity: 0.65; }
+
+/* The rank is the number printed on the sheet, so it is shown as a number
+   and not as a position in a list. */
+.pg-rank {
+  width: 1.5rem; height: 1.5rem; flex: none;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--ink-900); color: var(--ink-0);
+  border-radius: 50%; font-size: 0.74rem; font-weight: 800;
+}
+
+.pg-choice-main { flex: 1; min-width: 0; }
+.pg-choice-name { font-size: 0.85rem; font-weight: 600; }
+.pg-choice-meta { font-size: 0.72rem; color: var(--ink-500); }
+.pg-choice-actions { display: flex; gap: 0.25rem; }
+
+.pg-picker { display: flex; flex-direction: column; gap: 0.5rem; }
+.pg-search {
+  padding: 0.55rem 0.75rem; border: 1.5px solid var(--ink-200);
+  border-radius: var(--radius-md); font: inherit; font-size: 16px;
+  background: var(--ink-0); color: var(--ink-900);
+}
+
+.pg-results {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 0.35rem; max-height: 17rem; overflow-y: auto;
+}
+
+.pg-result {
+  display: flex; align-items: center; gap: 0.5rem;
+  padding: 0.35rem 0.5rem; text-align: left;
+  border: 1px solid var(--ink-100); border-radius: var(--radius-md);
+  background: var(--ink-0); cursor: pointer; font: inherit; min-width: 0;
+}
+.pg-result:hover { border-color: var(--brand-400); }
+.pg-result.is-in { opacity: 0.5; cursor: default; }
+.pg-result-name {
+  flex: 1; min-width: 0; font-size: 0.8rem; font-weight: 600;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.pg-result-meta { font-size: 0.72rem; color: var(--ink-500); white-space: nowrap; }
