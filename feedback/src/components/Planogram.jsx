@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { api } from './invApi.js'
 import { printPlanogram, groupRows } from './planogramPrint.js'
 import './Planogram.css'
@@ -58,18 +58,28 @@ function Thumb({ product, size = 'sm' }) {
     )
 }
 
-export default function Planogram({ pods, products, run, say, oops, busy }) {
+export default function Planogram({ pods, products, run, say, oops, busy, loadRefs }) {
   const [podId, setPodId] = useState('')
   const [plan, setPlan] = useState(null)       // { pod, slots: [...] }
   const [dirty, setDirty] = useState(false)
   const [selected, setSelected] = useState(null)  // slotName being edited
   const [search, setSearch] = useState('')
   const [page, setPage] = useState('A4 landscape')
+  const [build, setBuild] = useState({ rows: 6, columns: 8, style: 'letter' })
 
   const byId = useMemo(
     () => Object.fromEntries((products || []).map((p) => [p.id, p])),
     [products]
   )
+
+  /* `oops` is rebuilt by the parent on every one of ITS renders -- showing a
+     notice is enough to do it -- so depending on it here would give `load` a
+     new identity each time, re-run the effect below, and refetch the plan.
+     That silently threw away unsaved edits: build a grid, see the "15 slots
+     added" notice, and the grid was gone before you could read it. The ref
+     keeps the current function without making the loader unstable. */
+  const oopsRef = useRef(oops)
+  oopsRef.current = oops
 
   const load = useCallback(async (id) => {
     if (!id) { setPlan(null); return }
@@ -77,9 +87,11 @@ export default function Planogram({ pods, products, run, say, oops, busy }) {
       setPlan(await api(`/api/inv/planogram/${encodeURIComponent(id)}`))
       setDirty(false)
       setSelected(null)
-    } catch (e) { oops(e) }
-  }, [oops])
+    } catch (e) { oopsRef.current(e) }
+  }, [])
 
+  // Only when the machine changes. Reloading for any other reason would
+  // discard whatever is being edited.
   useEffect(() => { load(podId) }, [podId, load])
 
   const slots = plan?.slots || []
@@ -150,6 +162,42 @@ export default function Planogram({ pods, products, run, say, oops, busy }) {
     setSelected(slotName)
   }
 
+  /**
+   * Builds a grid for a machine we have no layout for.
+   *
+   * Two naming styles because both are painted on real machines: A1..A8 with a
+   * letter per row, and 11..18 where the first digit is the row. Getting this
+   * wrong means a refiller reading "C4" off the sheet and looking for it on a
+   * machine that says "34".
+   */
+  const buildGrid = () => {
+    const rows = Math.min(26, Math.max(1, Number(build.rows) || 0))
+    const columns = Math.min(20, Math.max(1, Number(build.columns) || 0))
+    const name = (r, c) => (build.style === 'letter'
+      ? `${String.fromCharCode(64 + r)}${c}`
+      : `${r}${String(c).padStart(2, '0')}`)
+
+    const made = []
+    for (let r = 1; r <= rows; r++) {
+      for (let c = 1; c <= columns; c++) {
+        made.push({
+          slotName: name(r, c), rowNumber: r, columnNumber: c,
+          capacity: null, note: '', choices: [], actual: null,
+        })
+      }
+    }
+
+    // Anything already planned is kept: this is for filling an empty machine,
+    // not for wiping one somebody has started.
+    const have = new Set(slots.map((s) => s.slotName))
+    const added = made.filter((s) => !have.has(s.slotName))
+    if (!added.length) { say('Those slots already exist.'); return }
+
+    setPlan((p) => ({ ...p, slots: [...p.slots, ...added] }))
+    setDirty(true)
+    say(`${added.length} slot(s) added. Nothing is stored until you save.`)
+  }
+
   const removeSlot = (slotName) => {
     if (!window.confirm(`Remove slot ${slotName} from the plan?`)) return
     setPlan((p) => ({ ...p, slots: p.slots.filter((s) => s.slotName !== slotName) }))
@@ -188,9 +236,44 @@ export default function Planogram({ pods, products, run, say, oops, busy }) {
     load(podId)
   })
 
-  const syncImages = () => run(async () => {
-    const r = await api('/api/inv/product-images/sync', { method: 'POST' })
-    say(r.message)
+  /**
+   * Brings the whole VLite catalogue across, then the pictures.
+   *
+   * Orchestrated here rather than in a new endpoint: importing and linking
+   * products is already a careful piece of server code that fills blanks
+   * without overwriting anything a manager corrected by hand, and a second
+   * copy of that reasoning would be the thing that quietly disagrees with it.
+   * This just hands it every product instead of a chosen few.
+   */
+  const pullProducts = () => run(async () => {
+    const cat = await api('/api/inv/vlite/products')
+    const missing = (cat.items || [])
+      .filter((i) => i.status !== 'linked')
+      .map((i) => i.vliteProductId)
+
+    let created = 0
+    let linked = 0
+    // The import caps a batch at 500, which is also about as much as one
+    // request should carry on the free plan's CPU budget.
+    for (let i = 0; i < missing.length; i += 200) {
+      const r = await api('/api/inv/vlite/products/import', {
+        method: 'POST',
+        body: { vliteProductIds: missing.slice(i, i + 200) },
+      })
+      created += r.created?.length ?? 0
+      linked += r.linked?.length ?? 0
+    }
+
+    const img = await api('/api/inv/product-images/sync', { method: 'POST' })
+
+    say(
+      `${cat.summary?.total ?? 0} products in VLite`
+      + (created ? `, ${created} added here` : '')
+      + (linked ? `, ${linked} matched to existing ones` : '')
+      + (!created && !linked ? ', all of them already here' : '')
+      + `. ${img.updated} picture(s) refreshed.`
+    )
+    await loadRefs()
   })
 
   /* ---------------------------------------------------------------- UI -- */
@@ -228,11 +311,17 @@ export default function Planogram({ pods, products, run, say, oops, busy }) {
 
         {plan && (
           <>
-            <button type="button" className="inv-ghost" onClick={pull} disabled={busy}>
-              Read layout from VLite
-            </button>
-            <button type="button" className="inv-ghost" onClick={syncImages} disabled={busy}>
-              Refresh product pictures
+            {/* Only offered while there is no layout. Once a machine's grid is
+                in our database it does not change -- the shelves are physical
+                -- so a button to re-read it would be a button whose only
+                effect is to re-type what is already there. */}
+            {!slots.length && plan.pod.vliteMachineId && (
+              <button type="button" className="inv-ghost" onClick={pull} disabled={busy}>
+                Read layout from VLite
+              </button>
+            )}
+            <button type="button" className="inv-ghost" onClick={pullProducts} disabled={busy}>
+              Pull products from VLite
             </button>
             <label className="pg-pick pg-pick--sm">
               <span>Print size</span>
@@ -264,10 +353,47 @@ export default function Planogram({ pods, products, run, say, oops, busy }) {
       )}
 
       {plan && !slots.length && (
-        <p className="inv-empty">
-          No slots yet. “Read layout from VLite” brings the machine’s own grid
-          across, or add slots by hand.
-        </p>
+        <div className="pg-build">
+          <h3>This machine has no layout yet</h3>
+          <p className="pg-build-sub">
+            {plan.pod.vliteMachineId
+              ? 'Read it from VLite, or lay it out yourself — a machine VLite does not describe properly is quicker to type than to argue with.'
+              : 'This machine is not linked to VLite, so lay it out as it is in front of you.'}
+          </p>
+          <div className="pg-build-row">
+            <label className="pg-field">
+              <span>Rows</span>
+              <input
+                type="number" min="1" max="26" value={build.rows}
+                onChange={(e) => setBuild({ ...build, rows: e.target.value })}
+              />
+            </label>
+            <label className="pg-field">
+              <span>Slots per row</span>
+              <input
+                type="number" min="1" max="20" value={build.columns}
+                onChange={(e) => setBuild({ ...build, columns: e.target.value })}
+              />
+            </label>
+            <label className="pg-field pg-field--wide">
+              <span>Named like</span>
+              <select
+                value={build.style}
+                onChange={(e) => setBuild({ ...build, style: e.target.value })}
+              >
+                <option value="letter">A1, A2 … B1, B2 (letter per row)</option>
+                <option value="number">101, 102 … 201, 202 (row then slot)</option>
+              </select>
+            </label>
+            <button type="button" className="pg-save" onClick={buildGrid}>
+              Build {Math.max(0, Number(build.rows) || 0) * Math.max(0, Number(build.columns) || 0)} slots
+            </button>
+          </div>
+          <p className="pg-build-note">
+            Use whatever is printed on the machine itself. Slots can be renamed,
+            added and removed afterwards, and nothing is stored until you save.
+          </p>
+        </div>
       )}
 
       {plan && !!slots.length && (

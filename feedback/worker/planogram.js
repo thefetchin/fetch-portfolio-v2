@@ -51,7 +51,11 @@ export function normaliseChoices(raw) {
 export function normaliseSlot(raw) {
   const slotName = cleanText(raw?.slotName, 20)
   if (!slotName) return null
+  // Missing has to be checked before converting: Number(null) and Number('')
+  // are both 0, and 0 is a real capacity -- a slot deliberately left empty.
+  // Without this, every unspecified capacity came back as "holds 0".
   const int = (v, min, max) => {
+    if (v === null || v === undefined || v === '') return null
     const n = Number(v)
     return Number.isInteger(n) && n >= min && n <= max ? n : null
   }

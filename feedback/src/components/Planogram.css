@@ -188,3 +188,32 @@
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .pg-result-meta { font-size: 0.72rem; color: var(--ink-500); white-space: nowrap; }
+
+/* ------------------------------------------------------- empty machine -- */
+/* Laying out a machine by hand, for one VLite does not describe or does not
+   know about at all. */
+
+.pg-build {
+  background: var(--ink-0);
+  border: 1px dashed var(--ink-200);
+  border-radius: var(--radius-lg);
+  padding: 1rem;
+  display: flex; flex-direction: column; gap: 0.6rem;
+}
+
+.pg-build h3 { font-size: 0.95rem; font-weight: 800; margin: 0; }
+
+.pg-build-sub {
+  margin: 0; font-size: 0.84rem; line-height: 1.5;
+  color: var(--ink-500); max-width: 68ch;
+}
+
+.pg-build-row { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 0.6rem; }
+.pg-build-row .pg-field--wide { flex: 1 1 20rem; }
+.pg-build-row select {
+  padding: 0.45rem 0.6rem; border: 1.5px solid var(--ink-200);
+  border-radius: var(--radius-md); font: inherit; font-size: 0.85rem;
+  background: var(--ink-0); color: var(--ink-900); width: 100%;
+}
+
+.pg-build-note { margin: 0; font-size: 0.76rem; color: var(--ink-500); }

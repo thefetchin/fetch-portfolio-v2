@@ -74,9 +74,21 @@ eq('a real row number is kept',
   normaliseSlot({ slotName: 'A1', rowNumber: 3, columnNumber: 2 }),
   { slotName: 'A1', rowNumber: 3, columnNumber: 2, capacity: null, note: null, choices: [] })
 
-// Zero is a real capacity: a slot that is deliberately left empty.
+// Zero is a real capacity: a slot that is deliberately left empty. Which is
+// why "not given" has to be distinguished from it before any conversion --
+// Number(null) and Number('') are both 0, and a slot with no capacity typed
+// was printing as "holds 0".
 eq('a capacity of zero survives', normaliseSlot({ slotName: 'A1', capacity: 0 }).capacity, 0)
+eq('no capacity is not a capacity of zero',
+  normaliseSlot({ slotName: 'A1', capacity: null }).capacity, null)
+eq('an empty box is not a capacity of zero either',
+  normaliseSlot({ slotName: 'A1', capacity: '' }).capacity, null)
+eq('a missing capacity key is null',
+  normaliseSlot({ slotName: 'A1' }).capacity, null)
 eq('a negative capacity does not', normaliseSlot({ slotName: 'A1', capacity: -2 }).capacity, null)
+// Same trap one field over: an empty row box must not become row 0.
+eq('an empty row box is not row zero',
+  normaliseSlot({ slotName: 'A1', rowNumber: '' }).rowNumber, null)
 
 /* ---------------------------------------------------------------- grid -- */
 section('grouping slots into the rows of the machine')
